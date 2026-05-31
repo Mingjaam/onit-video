@@ -178,7 +178,7 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
     ].join(" ");
   });
 
-  const circleFade = smoothstep(0.16, 0.78, inflate);
+  const circleFade = smoothstep(0.24, 0.86, inflate);
   const circleOpacity = circleIn * (1 - circleFade);
   syncClayCircleToSphere();
   clayCircle.style.opacity = circleOpacity.toFixed(3);
@@ -186,24 +186,27 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
 }
 
 function updateBall(t, inflate, runTime, circleIn) {
-  const appear = smoothstep(0.04, 0.62, inflate);
-  const planarScale = 0.22 + circleIn * 0.78;
+  const morph = smoothstep(0.24, 0.86, inflate);
+  const appear = morph;
+  const planarScale = lerp(0.96, 1, morph) * (0.22 + circleIn * 0.78);
 
   sphere.material.opacity = appear;
 
   if (runTime <= 0) {
-    lastIntroY = lerp(0.44, 0.7, inflate);
+    lastIntroY = lerp(0.44, 0.58, smoothstep(0.35, 1, inflate));
     sphereGroup.position.set(0, lastIntroY, 0);
     sphereGroup.scale.setScalar(planarScale);
   } else {
     const motion = simulateMarble(runTime, lastIntroY);
     sphereGroup.position.copy(motion.position);
     sphereGroup.scale.setScalar(motion.scale);
+    sphereGroup.rotation.y = inflate * 1.8 + motion.spin * 0.18;
+    sphereGroup.rotation.x = motion.spin;
+    return;
   }
 
-  const spin = runTime > 0 ? simulateMarble(runTime, lastIntroY).spin : 0;
-  sphereGroup.rotation.y = inflate * 1.8 + spin * 0.18;
-  sphereGroup.rotation.x = Math.sin(t * 1.7) * 0.06 * inflate + spin;
+  sphereGroup.rotation.y = inflate * 1.8;
+  sphereGroup.rotation.x = Math.sin(t * 1.7) * 0.04 * inflate;
 }
 
 function simulateMarble(time, startY) {
@@ -211,15 +214,15 @@ function simulateMarble(time, startY) {
   const gravity = new THREE.Vector3(0, -5.8, 0);
   const state = {
     mode: "falling",
-    position: new THREE.Vector3(-0.45, startY, -0.1),
-    velocity: new THREE.Vector3(0.2, -0.2, 0.04),
+    position: new THREE.Vector3(0, startY, 0),
+    velocity: new THREE.Vector3(0.04, -0.2, 0.01),
     railIndex: -1,
     railS: 0,
     railV: 0,
     spin: 0
   };
 
-  let remaining = Math.min(time, 6.2);
+  let remaining = Math.min(time, 8.4);
   while (remaining > 0) {
     const step = Math.min(dt, remaining);
     stepPhysics(state, step, gravity);
@@ -259,6 +262,7 @@ function stepPhysics(state, dt, gravity) {
   const previous = state.position.clone();
   state.velocity.addScaledVector(gravity, dt);
   state.position.addScaledVector(state.velocity, dt);
+  state.spin += state.velocity.length() * dt * 0.42;
 
   const hit = findRailHit(previous, state.position, state.railIndex);
   if (hit) {
@@ -365,21 +369,18 @@ function projectToScreen(worldPosition) {
 }
 
 function updateCamera(t, inflate, runTime) {
-  const reveal = smoothstep(0, 1.7, runTime);
-  const follow = runTime > 1.2 ? smoothstep(1.2, 5.2, runTime) : 0;
+  const reveal = smoothstep(0.2, 2.25, runTime);
+  const follow = smoothstep(1.1, 5.4, runTime);
   const ball = sphereGroup.position;
 
-  camera.position.x = lerp(0, -1.15, reveal) + ball.x * 0.18 * follow;
-  camera.position.y = lerp(0.36, 3.65, reveal) + ball.y * 0.62 * follow;
-  camera.position.z = lerp(8.7, 10.6, reveal);
+  camera.position.x = lerp(0, -0.62, reveal) + ball.x * 0.1 * follow;
+  camera.position.y = lerp(0.36, 2.9, reveal) + ball.y * 0.42 * follow;
+  camera.position.z = lerp(8.7, 11.4, reveal);
 
-  if (reveal < 0.98) {
-    cameraTarget.lerp(new THREE.Vector3(0, -0.03, 0), 0.12);
-    camera.lookAt(cameraTarget);
-    return;
-  }
-
-  camera.lookAt(camera.position.clone().add(fixedRunLookDirection));
+  const introLook = new THREE.Vector3(0, -0.03, 0);
+  const runLook = camera.position.clone().add(fixedRunLookDirection);
+  cameraTarget.copy(introLook).lerp(runLook, smoothstep(0.58, 1, reveal));
+  camera.lookAt(cameraTarget);
 }
 
 function makeRailFromLayout(rail) {
