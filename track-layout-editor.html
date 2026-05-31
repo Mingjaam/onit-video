@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ON-IT Track Layout Editor</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #1e211d;
+      color: #eef2ea;
+      font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 380px;
+      width: 100vw;
+      height: 100vh;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      overflow: hidden;
+      background: #bfc2ba;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      cursor: crosshair;
+    }
+
+    .sidebar {
+      padding: 22px;
+      border-left: 1px solid rgba(255, 255, 255, 0.12);
+      background: #242822;
+      overflow: auto;
+    }
+
+    h1 {
+      margin: 0 0 6px;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 18px;
+      color: rgba(238, 242, 234, 0.68);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .row {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      height: 34px;
+      border: 1px solid rgba(255, 255, 255, 0.16);
+      border-radius: 6px;
+      padding: 0 12px;
+      background: rgba(255, 255, 255, 0.08);
+      color: #eef2ea;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    button.active {
+      border-color: #73ae4e;
+      background: rgba(115, 174, 78, 0.22);
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 330px;
+      resize: vertical;
+      border: 1px solid rgba(255, 255, 255, 0.13);
+      border-radius: 8px;
+      padding: 12px;
+      background: #151812;
+      color: #dce8d6;
+      font: 12px/1.45 Menlo, Consolas, monospace;
+    }
+
+    .stats {
+      margin: 14px 0;
+      color: rgba(238, 242, 234, 0.72);
+      font-size: 13px;
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="canvas-wrap">
+      <canvas id="editor"></canvas>
+    </section>
+    <aside class="sidebar">
+      <h1>Track Layout Editor</h1>
+      <p>Click two points to create a rail centerline. Switch to xylophone mode and click where a beat object should sit. Export gives Three.js world coordinates.</p>
+      <div class="row">
+        <button id="railMode" class="active">Rail</button>
+        <button id="xyloMode">Xylophone</button>
+      </div>
+      <div class="row">
+        <button id="undoBtn">Undo</button>
+        <button id="clearBtn">Clear</button>
+        <button id="copyBtn">Copy JSON</button>
+      </div>
+      <div class="stats" id="stats"></div>
+      <textarea id="output" spellcheck="false"></textarea>
+    </aside>
+  </main>
+  <script type="module" src="./track-layout-editor.js"></script>
+</body>
+</html>
