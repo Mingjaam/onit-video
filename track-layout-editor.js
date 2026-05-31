@@ -11,7 +11,6 @@ const zInput = document.getElementById("zInput");
 const sizeInput = document.getElementById("sizeInput");
 const labelInput = document.getElementById("labelInput");
 const selectModeBtn = document.getElementById("selectModeBtn");
-const addRailPointBtn = document.getElementById("addRailPointBtn");
 const addXyloBtn = document.getElementById("addXyloBtn");
 
 const SPHERE_RADIUS = 0.38;
@@ -82,13 +81,11 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 const handleMaterial = new THREE.MeshStandardMaterial({ color: 0x20251e, roughness: 0.44 });
 const selectedMaterial = new THREE.MeshStandardMaterial({ color: 0xf1d75e, roughness: 0.38 });
 const selectedWireMaterial = new THREE.MeshBasicMaterial({ color: 0xf1d75e, wireframe: true });
-const draftMaterial = new THREE.MeshStandardMaterial({ color: 0x73ae4e, roughness: 0.38 });
 
 const trackGroup = new THREE.Group();
 const handleGroup = new THREE.Group();
-const draftGroup = new THREE.Group();
 const xyloGroup = new THREE.Group();
-scene.add(trackGroup, handleGroup, draftGroup, xyloGroup);
+scene.add(trackGroup, handleGroup, xyloGroup);
 
 const ballGroup = new THREE.Group();
 const ball = new THREE.Mesh(
@@ -115,7 +112,6 @@ scene.add(ballGroup);
 const rails = [];
 const xylophones = [];
 let runtimeRails = [];
-let draftPoints = [];
 let handleObjects = [];
 let selected = null;
 let dragging = false;
@@ -123,7 +119,6 @@ let ballState = null;
 let spin = 0;
 let lastTime = performance.now();
 let activeTool = "select";
-let activeRailIndexForAppend = null;
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -135,9 +130,6 @@ const placementPoint = new THREE.Vector3();
 spawnBallBtn.addEventListener("click", spawnBall);
 document.getElementById("resetBallBtn").addEventListener("click", removeBall);
 selectModeBtn.addEventListener("click", () => setTool("select"));
-addRailPointBtn.addEventListener("click", () => setTool("rail"));
-document.getElementById("finishRailBtn").addEventListener("click", finishDraftRail);
-document.getElementById("clearDraftBtn").addEventListener("click", clearDraft);
 addXyloBtn.addEventListener("click", () => setTool("xylophone"));
 document.getElementById("prevBtn").addEventListener("click", () => moveSelection(-1));
 document.getElementById("nextBtn").addEventListener("click", () => moveSelection(1));
@@ -298,64 +290,8 @@ function railTangentAtDistance(rail, s) {
 
 function setTool(nextTool) {
   activeTool = nextTool;
-  if (nextTool === "rail") {
-    activeRailIndexForAppend = null;
-    draftPoints = [];
-    rebuildDraft();
-  }
   selectModeBtn.classList.toggle("active", activeTool === "select");
-  addRailPointBtn.classList.toggle("active", activeTool === "rail");
   addXyloBtn.classList.toggle("active", activeTool === "xylophone");
-}
-
-function addRailPointAt(point) {
-  if (activeRailIndexForAppend !== null && rails[activeRailIndexForAppend]) {
-    const rail = rails[activeRailIndexForAppend];
-    rail.points.push(roundPoint(point));
-    selected = {
-      type: "railPoint",
-      railIndex: activeRailIndexForAppend,
-      pointIndex: rail.points.length - 1
-    };
-    refreshScene();
-    return;
-  }
-
-  draftPoints.push(roundPoint(point));
-  if (draftPoints.length < 2) {
-    rebuildDraft();
-    exportLayout();
-    return;
-  }
-
-  const railIndex = rails.length;
-  rails.push({
-    points: draftPoints.map((draftPoint) => ({ ...draftPoint })),
-    beat: rails.length + 1
-  });
-  activeRailIndexForAppend = railIndex;
-  draftPoints = [];
-  selected = { type: "railPoint", railIndex, pointIndex: 1 };
-  refreshScene();
-}
-
-function finishDraftRail() {
-  if (draftPoints.length >= 2) {
-    rails.push({
-      points: draftPoints.map((point) => ({ ...point })),
-      beat: rails.length + 1
-    });
-  }
-  activeRailIndexForAppend = null;
-  draftPoints = [];
-  refreshScene();
-}
-
-function clearDraft() {
-  draftPoints = [];
-  activeRailIndexForAppend = null;
-  rebuildDraft();
-  exportLayout();
 }
 
 function addXylophoneAt(position) {
@@ -382,22 +318,8 @@ function refreshScene() {
     addRailPointHandles(rails[index], index);
   });
   xylophones.forEach((item, index) => addXylophone(item, index));
-  rebuildDraft();
   syncInputs();
   exportLayout();
-}
-
-function rebuildDraft() {
-  clearGroup(draftGroup);
-  draftPoints.forEach((point, index) => {
-    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.075, 18, 18), draftMaterial);
-    marker.position.set(point.x, point.y, point.z);
-    draftGroup.add(marker);
-    if (index > 0) {
-      const rail = makeRuntimeRail(draftPoints.slice(index - 1, index + 1));
-      addParallelRails(rail.curve, draftGroup);
-    }
-  });
 }
 
 function makeRuntimeRail(points) {
@@ -543,11 +465,6 @@ function onPointerDown(event) {
   const point = pointerToPlacementPoint();
   if (!point) return;
 
-  if (activeTool === "rail") {
-    addRailPointAt(point);
-    return;
-  }
-
   if (activeTool === "xylophone") {
     addXylophoneAt(point);
     setTool("select");
@@ -679,8 +596,6 @@ function deleteSelected() {
 function clearLayout() {
   rails.length = 0;
   xylophones.length = 0;
-  draftPoints = [];
-  activeRailIndexForAppend = null;
   selected = null;
   refreshScene();
 }
@@ -723,8 +638,7 @@ function updateStats() {
   const ballText = ballState
     ? `ball ${ballState.position.x.toFixed(2)}, ${ballState.position.y.toFixed(2)}, ${ballState.position.z.toFixed(2)}`
     : "ball not spawned";
-  const railModeText = activeRailIndexForAppend === null ? "new rail" : `editing rail ${activeRailIndexForAppend + 1}`;
-  stats.textContent = `tool ${activeTool}${activeTool === "rail" ? ` ${railModeText}` : ""} | ${rails.length} rails, ${draftPoints.length} draft points, ${xylophones.length} xylophones | ${ballText}`;
+  stats.textContent = `tool ${activeTool} | ${rails.length} rails, ${xylophones.length} xylophones | ${ballText}`;
 }
 
 function updateCamera() {
