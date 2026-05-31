@@ -4,7 +4,8 @@ const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
-const SPHERE_RADIUS = 1.2;
+const SPHERE_RADIUS = 0.86;
+const ROLL_SCALE = 0.82;
 const LOOP_DURATION = 10.6;
 
 const scene = new THREE.Scene();
@@ -76,7 +77,7 @@ railCurve.curveType = "catmullrom";
 railCurve.tension = 0.5;
 
 const rideCurve = new THREE.CatmullRomCurve3(
-  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, SPHERE_RADIUS * 0.31, 0)))
+  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, SPHERE_RADIUS * ROLL_SCALE + 0.07, 0)))
 );
 rideCurve.curveType = "catmullrom";
 rideCurve.tension = 0.5;
@@ -308,7 +309,7 @@ function railMotion(time, startY) {
 
     return {
       position,
-      scale: lerp(1, 0.74, approach),
+      scale: lerp(1, ROLL_SCALE, approach),
       squashX: impact * 0.12,
       squashY: -impact * 0.16,
       shadow: lerp(0.04, 0.16, p),
@@ -328,12 +329,12 @@ function railMotion(time, startY) {
 
   return {
     position,
-    scale: 0.74,
+    scale: ROLL_SCALE,
     squashX: landingPulse * 0.08,
     squashY: -landingPulse * 0.12,
     shadow: 0.14,
     shadowScale: lerp(0.86, 0.72, rollTime),
-    spin: (u * railLength) / (SPHERE_RADIUS * 0.74) + tangent.x * 0.25
+    spin: (u * railLength) / (SPHERE_RADIUS * ROLL_SCALE) + tangent.x * 0.25
   };
 }
 
