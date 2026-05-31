@@ -448,7 +448,7 @@ function updateCamera(t, runTime) {
 
 function updateOrbShape(progress) {
   const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
-  const foldProgress = easeInOutCubic(smoothstep(0.58, 1, progress));
+  const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
   const holeProgress = easeInOutCubic(smoothstep(0.18, 0.9, progress));
   const outerFrame = interpolatePoints(circleShape.outer, frameShape.outer, frameProgress);
   const outer = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
@@ -485,8 +485,8 @@ function makeLogoShapeVariant(fold) {
     ["line", { x: 4, y: 26 }, { x: 4, y: 75 }, 9],
     ["cubic", { x: 4, y: 75 }, { x: 4, y: 89 }, { x: 13, y: 98 }, { x: 28, y: 98 }, 10],
     ["line", { x: 28, y: 98 }, { x: 55, y: 98 }, 8],
-    ["cubic", { x: 55, y: 98 }, lerpPoint({ x: 62, y: 98 }, { x: 62, y: 98 }, fold), lerpPoint({ x: 73, y: 98 }, { x: 66, y: 95 }, fold), lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), 8],
-    ["line", lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), lerpPoint({ x: 96, y: 80 }, { x: 88, y: 73 }, fold), 8],
+    ["cubic", { x: 55, y: 98 }, { x: 62, y: 98 }, lerpPoint({ x: 70, y: 98 }, { x: 66, y: 95 }, fold), lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), 8],
+    ["cubic", lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), lerpPoint({ x: 88, y: 98 }, { x: 77, y: 84 }, fold), lerpPoint({ x: 96, y: 90 }, { x: 83, y: 78 }, fold), lerpPoint({ x: 96, y: 80 }, { x: 88, y: 73 }, fold), 8],
     ["cubic", lerpPoint({ x: 96, y: 80 }, { x: 88, y: 73 }, fold), lerpPoint({ x: 96, y: 72 }, { x: 92, y: 69 }, fold), { x: 96, y: 64 }, { x: 96, y: 55 }, 9],
     ["line", { x: 96, y: 55 }, { x: 96, y: 29 }, 7],
     ["cubic", { x: 96, y: 29 }, { x: 96, y: 16 }, { x: 87, y: 8 }, { x: 74, y: 8 }, 10],
@@ -499,7 +499,7 @@ function makeLogoShapeVariant(fold) {
     ["cubic", { x: 23, y: 74 }, { x: 23, y: 77 }, { x: 25, y: 79 }, { x: 28, y: 79 }, 7],
     ["line", { x: 28, y: 79 }, { x: 55, y: 79 }, 8],
     ["line", { x: 55, y: 79 }, lerpPoint({ x: 66, y: 79 }, { x: 55, y: 70 }, fold), 7],
-    ["cubic", lerpPoint({ x: 66, y: 79 }, { x: 55, y: 70 }, fold), lerpPoint({ x: 74, y: 79 }, { x: 55, y: 62 }, fold), lerpPoint({ x: 78, y: 70 }, { x: 61, y: 57 }, fold), { x: 68, y: 57 }, 10],
+    ["cubic", lerpPoint({ x: 66, y: 79 }, { x: 55, y: 70 }, fold), lerpPoint({ x: 78, y: 79 }, { x: 55, y: 62 }, fold), lerpPoint({ x: 78, y: 64 }, { x: 61, y: 57 }, fold), { x: 68, y: 57 }, 10],
     ["line", { x: 68, y: 57 }, { x: 78, y: 57 }, 6],
     ["line", { x: 78, y: 57 }, { x: 78, y: 28 }, 8],
     ["cubic", { x: 78, y: 28 }, { x: 78, y: 25 }, { x: 76, y: 23 }, { x: 73, y: 23 }, 7],
