@@ -10,7 +10,7 @@ const LOOP_DURATION = 10.6;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xf4f6f0);
-scene.fog = new THREE.Fog(0xf4f6f0, 9, 18);
+scene.fog = new THREE.Fog(0xf4f6f0, 10, 20);
 
 const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0.36, 8.7);
@@ -44,57 +44,39 @@ const rim = new THREE.PointLight(0xa6ef7b, 7.5, 12);
 rim.position.set(2.8, 2.8, 3.2);
 scene.add(rim);
 
-const floor = new THREE.Mesh(
-  new THREE.PlaneGeometry(16, 10),
-  new THREE.ShadowMaterial({ color: 0x22321d, opacity: 0.18 })
+const wall = new THREE.Mesh(
+  new THREE.PlaneGeometry(14, 9),
+  new THREE.MeshStandardMaterial({
+    color: 0xf0f3eb,
+    roughness: 0.88,
+    metalness: 0.0
+  })
 );
-floor.rotation.x = -Math.PI / 2;
-floor.position.y = -2.45;
-floor.receiveShadow = true;
-scene.add(floor);
-
-const floorLine = new THREE.Mesh(
-  new THREE.BoxGeometry(6.8, 0.012, 0.012),
-  new THREE.MeshBasicMaterial({ color: 0x73ae4e, transparent: true, opacity: 0.34 })
-);
-floorLine.position.set(0, -2.438, 0.15);
-scene.add(floorLine);
+wall.position.set(0, -0.45, -0.08);
+wall.receiveShadow = true;
+scene.add(wall);
 
 const railGroup = new THREE.Group();
 scene.add(railGroup);
 
-const railCenterPoints = [
-  new THREE.Vector3(-2.7, -2.05, 0.82),
-  new THREE.Vector3(-1.45, -2.15, 1.08),
-  new THREE.Vector3(-0.1, -2.06, 1.36),
-  new THREE.Vector3(1.3, -2.2, 1.72),
-  new THREE.Vector3(2.9, -2.34, 2.1),
-  new THREE.Vector3(4.3, -2.48, 2.45)
+const railDepth = 0.04;
+const ballDepth = SPHERE_RADIUS * ROLL_SCALE + 0.08;
+const railGap = 0.46;
+const trackSegments = [
+  {
+    start: new THREE.Vector3(-0.75, -2.65, railDepth),
+    end: new THREE.Vector3(1.45, -3.15, railDepth)
+  },
+  {
+    start: new THREE.Vector3(-1.35, -4.05, railDepth),
+    end: new THREE.Vector3(1.75, -4.75, railDepth)
+  }
 ];
-
-const railCurve = new THREE.CatmullRomCurve3(railCenterPoints);
-railCurve.curveType = "catmullrom";
-railCurve.tension = 0.5;
-
-const rideCurve = new THREE.CatmullRomCurve3(
-  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, SPHERE_RADIUS * ROLL_SCALE + 0.07, 0)))
-);
-rideCurve.curveType = "catmullrom";
-rideCurve.tension = 0.5;
-
-const railOffset = 0.22;
-const leftRailCurve = new THREE.CatmullRomCurve3(
-  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, 0, -railOffset)))
-);
-const rightRailCurve = new THREE.CatmullRomCurve3(
-  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, 0, railOffset)))
-);
-[leftRailCurve, rightRailCurve].forEach((curve) => {
-  curve.curveType = "catmullrom";
-  curve.tension = 0.5;
-});
-
-const railLength = rideCurve.getLength();
+const rideSegments = trackSegments.map((segment) => makeLineCurve(
+  new THREE.Vector3(segment.start.x, segment.start.y, ballDepth),
+  new THREE.Vector3(segment.end.x, segment.end.y, ballDepth)
+));
+const railLengths = rideSegments.map((curve) => curve.getLength());
 
 const railMaterial = new THREE.MeshPhysicalMaterial({
   color: 0x343833,
@@ -104,31 +86,7 @@ const railMaterial = new THREE.MeshPhysicalMaterial({
   clearcoatRoughness: 0.24
 });
 
-const leftRail = makeRail(leftRailCurve);
-const rightRail = makeRail(rightRailCurve);
-railGroup.add(leftRail, rightRail);
-
-const tieMaterial = new THREE.MeshStandardMaterial({
-  color: 0x5d5044,
-  roughness: 0.82,
-  metalness: 0.0
-});
-
-for (let i = 0; i <= 18; i++) {
-  const u = i / 18;
-  const point = railCurve.getPointAt(u);
-  const tangent = railCurve.getTangentAt(u);
-  const tie = new THREE.Mesh(
-    new THREE.BoxGeometry(0.1, 0.055, 0.72),
-    tieMaterial
-  );
-  tie.position.copy(point);
-  tie.position.y -= 0.085;
-  tie.rotation.y = Math.atan2(tangent.z, tangent.x) + Math.PI / 2;
-  tie.castShadow = true;
-  tie.receiveShadow = true;
-  railGroup.add(tie);
-}
+trackSegments.forEach((segment) => addRailPair(segment.start, segment.end));
 
 const sphereGroup = new THREE.Group();
 sphereGroup.position.set(0, 0.44, 0);
@@ -161,8 +119,8 @@ const contactShadow = new THREE.Mesh(
     depthWrite: false
   })
 );
-contactShadow.rotation.x = -Math.PI / 2;
-contactShadow.position.y = -2.43;
+contactShadow.rotation.x = 0;
+contactShadow.position.z = 0.02;
 scene.add(contactShadow);
 
 const letterLayout = [
@@ -246,6 +204,7 @@ function updateSphere(t, inflate, fallTime, circleIn) {
       Math.max(0.012, planarScale * clayToSphere)
     );
     contactShadow.material.opacity = 0.05 * appear;
+    contactShadow.position.set(0, lastSettledY, 0.02);
     contactShadow.scale.setScalar(0.58 + appear * 0.18);
   } else {
     const motion = railMotion(fallTime, lastSettledY);
@@ -256,8 +215,7 @@ function updateSphere(t, inflate, fallTime, circleIn) {
       motion.scale * (1 + motion.squashX)
     );
     contactShadow.material.opacity = motion.shadow;
-    contactShadow.position.x = motion.position.x;
-    contactShadow.position.z = motion.position.z;
+    contactShadow.position.set(motion.position.x, motion.position.y, 0.02);
     contactShadow.scale.set(motion.shadowScale, motion.shadowScale * 0.42, 1);
   }
 
@@ -294,16 +252,20 @@ function projectToScreen(worldPosition) {
 }
 
 function railMotion(time, startY) {
-  const railStart = rideCurve.getPointAt(0);
-  const fallDuration = 1.05;
-  const rollDuration = 4.2;
+  const firstRailStart = rideSegments[0].getPointAt(0);
+  const firstRailEnd = rideSegments[0].getPointAt(1);
+  const secondRailStart = rideSegments[1].getPointAt(0);
+  const fallToFirstDuration = 0.85;
+  const firstRollDuration = 1.35;
+  const fallToSecondDuration = 0.58;
+  const secondRollDuration = 1.8;
 
-  if (time < fallDuration) {
-    const p = time / fallDuration;
+  if (time < fallToFirstDuration) {
+    const p = time / fallToFirstDuration;
     const eased = easeInCubic(p);
     const start = new THREE.Vector3(0, startY, 0);
-    const position = new THREE.Vector3().lerpVectors(start, railStart, eased);
-    position.y += Math.sin(p * Math.PI) * 0.08;
+    const position = new THREE.Vector3().lerpVectors(start, firstRailStart, eased);
+    position.y += Math.sin(p * Math.PI) * 0.05;
     const approach = smoothstep(0.15, 1, p);
     const impact = smoothstep(0.78, 1, p);
 
@@ -314,40 +276,76 @@ function railMotion(time, startY) {
       squashY: -impact * 0.16,
       shadow: lerp(0.04, 0.16, p),
       shadowScale: lerp(0.48, 0.92, p),
-      spin: p * 0.8
+      spin: p * 0.6
     };
   }
 
-  const elapsed = time - fallDuration;
-  const rollTime = Math.min(1, elapsed / rollDuration);
-  const u = Math.min(1, 0.16 * rollTime + 0.84 * rollTime * rollTime);
-  const position = rideCurve.getPointAt(u);
-  const tangent = rideCurve.getTangentAt(u);
-  position.y += Math.abs(Math.sin(elapsed * Math.PI * 2.2)) * 0.01 * (1 - rollTime);
+  let elapsed = time - fallToFirstDuration;
+  if (elapsed < firstRollDuration) {
+    const rollTime = Math.min(1, elapsed / firstRollDuration);
+    const u = easeInOutCubic(rollTime);
+    const position = rideSegments[0].getPointAt(u);
+    const tangent = rideSegments[0].getTangentAt(u);
+    const landingPulse = Math.max(0, 1 - elapsed * 4.2);
 
-  const landingPulse = Math.max(0, 1 - (time - fallDuration) * 4.2);
+    return {
+      position,
+      scale: ROLL_SCALE,
+      squashX: landingPulse * 0.08,
+      squashY: -landingPulse * 0.12,
+      shadow: 0.14,
+      shadowScale: 0.78,
+      spin: (u * railLengths[0]) / (SPHERE_RADIUS * ROLL_SCALE) + tangent.x * 0.2
+    };
+  }
+
+  elapsed -= firstRollDuration;
+  if (elapsed < fallToSecondDuration) {
+    const p = elapsed / fallToSecondDuration;
+    const eased = easeInCubic(p);
+    const position = new THREE.Vector3().lerpVectors(firstRailEnd, secondRailStart, eased);
+    position.y += Math.sin(p * Math.PI) * 0.08;
+    const impact = smoothstep(0.72, 1, p);
+
+    return {
+      position,
+      scale: ROLL_SCALE,
+      squashX: impact * 0.08,
+      squashY: -impact * 0.13,
+      shadow: lerp(0.08, 0.15, p),
+      shadowScale: lerp(0.54, 0.78, p),
+      spin: (railLengths[0] / (SPHERE_RADIUS * ROLL_SCALE)) + p * 0.7
+    };
+  }
+
+  elapsed -= fallToSecondDuration;
+  const rollTime = Math.min(1, elapsed / secondRollDuration);
+  const u = easeInCubic(rollTime);
+  const position = rideSegments[1].getPointAt(u);
+  const tangent = rideSegments[1].getTangentAt(u);
+  const secondLandingPulse = Math.max(0, 1 - elapsed * 4.0);
 
   return {
     position,
     scale: ROLL_SCALE,
-    squashX: landingPulse * 0.08,
-    squashY: -landingPulse * 0.12,
+    squashX: secondLandingPulse * 0.08,
+    squashY: -secondLandingPulse * 0.12,
     shadow: 0.14,
-    shadowScale: lerp(0.86, 0.72, rollTime),
-    spin: (u * railLength) / (SPHERE_RADIUS * ROLL_SCALE) + tangent.x * 0.25
+    shadowScale: lerp(0.78, 0.68, rollTime),
+    spin: ((railLengths[0] + u * railLengths[1]) / (SPHERE_RADIUS * ROLL_SCALE)) + tangent.x * 0.2
   };
 }
 
 function updateCamera(t, inflate, fallTime) {
-  const pullback = smoothstep(0.0, 2.2, fallTime);
-  camera.position.x = Math.sin(t * 0.55) * 0.08 + sphereGroup.position.x * 0.11 * pullback;
-  camera.position.y = lerp(0.36, 0.58, inflate) + pullback * 1.55;
-  camera.position.z = lerp(8.7, 13.4, pullback);
+  const pullback = smoothstep(0.0, 2.05, fallTime);
+  camera.position.x = Math.sin(t * 0.55) * 0.03 * (1 - pullback);
+  camera.position.y = lerp(0.36, 0.58, inflate) - pullback * 0.65;
+  camera.position.z = lerp(8.7, 12.8, pullback);
   cameraTarget.lerp(
     new THREE.Vector3(
-      sphereGroup.position.x * pullback,
-      lerp(-0.03, -1.58, pullback),
-      sphereGroup.position.z * pullback
+      0,
+      lerp(-0.03, -3.35, pullback),
+      0
     ),
     0.12
   );
@@ -362,6 +360,24 @@ function makeRail(curve) {
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
+}
+
+function makeLineCurve(start, end) {
+  return new THREE.LineCurve3(start, end);
+}
+
+function addRailPair(start, end) {
+  const direction = new THREE.Vector2(end.x - start.x, end.y - start.y).normalize();
+  const normal = new THREE.Vector2(-direction.y, direction.x).multiplyScalar(railGap / 2);
+  const left = makeLineCurve(
+    new THREE.Vector3(start.x + normal.x, start.y + normal.y, start.z),
+    new THREE.Vector3(end.x + normal.x, end.y + normal.y, end.z)
+  );
+  const right = makeLineCurve(
+    new THREE.Vector3(start.x - normal.x, start.y - normal.y, start.z),
+    new THREE.Vector3(end.x - normal.x, end.y - normal.y, end.z)
+  );
+  railGroup.add(makeRail(left), makeRail(right));
 }
 
 function responsiveUnit() {
