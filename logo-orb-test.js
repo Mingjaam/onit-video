@@ -4,6 +4,7 @@ const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
+const orbPath = document.getElementById("orbPath");
 const orbShadow = document.querySelector(".orb-shadow");
 const orbRipple = document.querySelector(".orb-ripple");
 
@@ -13,6 +14,8 @@ const RAIL_GAP = 0.58;
 const RAIL_TUBE_RADIUS = 0.026;
 const RAIL_CONTACT_RADIUS = SPHERE_RADIUS * ROLL_SCALE * 0.72;
 const FLOOR_Y = -2.95;
+const MORPH_START_Y = 0.44;
+const SHAPE_POINT_COUNT = 88;
 const LOOP_DURATION = 11.8;
 const BALL_COLOR = 0x73ae4e;
 const BOARD_COLOR = 0xbfc2ba;
@@ -39,7 +42,6 @@ scene.fog = new THREE.Fog(BOARD_COLOR, 10, 24);
 
 const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0.36, 8.7);
-const fixedRunLookDirection = new THREE.Vector3(0, -0.28, -1).normalize();
 
 const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
@@ -131,11 +133,14 @@ const letterLayout = [
   { x: 1.63, y: 0.03, r: 1.5 }
 ];
 
+const circleShape = makeCircleLogoShape();
+const logoShape = makeOnitLogoShape();
 const clock = new THREE.Clock();
 let lastIntroY = 0.44;
 let cameraTarget = new THREE.Vector3(0, -0.03, 0);
 let lastImpact = 0;
 
+updateOrbShape(0);
 animate();
 
 function animate() {
@@ -149,15 +154,16 @@ function animate() {
   const logoOut = smoothstep(2.45, 3.35, t);
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
+  const logoMorph = smoothstep(5.95, 7.45, runTime);
 
-  updateBall(t, dropReady, runTime, circleIn);
+  updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updateCamera(t, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -183,22 +189,23 @@ function updateClayLogo(t, gather, circleIn, logoOut) {
   });
 
   const circleOpacity = circleIn;
+  updateOrbShape(logoMorph);
   syncClayCircleToSphere();
   clayCircle.style.opacity = circleOpacity.toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
-function updateBall(t, dropReady, runTime, circleIn) {
+function updateBall(t, dropReady, runTime, circleIn, logoMorph) {
   const planarScale = 0.22 + circleIn * 0.78;
 
   sphere.material.opacity = 0;
 
   if (dropReady < 1) {
-    lastIntroY = 0.44;
+    lastIntroY = MORPH_START_Y;
     sphereGroup.position.set(0, lastIntroY, 0);
     sphereGroup.scale.setScalar(planarScale);
   } else {
-    const motion = simulateMarble(runTime, lastIntroY);
+    const motion = simulateMarble(runTime, lastIntroY, logoMorph);
     lastImpact = motion.impact;
     sphereGroup.position.copy(motion.position);
     sphereGroup.scale.set(
@@ -216,13 +223,13 @@ function updateBall(t, dropReady, runTime, circleIn) {
   sphereGroup.rotation.x = 0;
 }
 
-function simulateMarble(time, startY) {
+function simulateMarble(time, startY, logoMorph) {
   const dt = 1 / 90;
   const gravity = new THREE.Vector3(0, -5.8, 0);
   const state = {
     mode: "falling",
     position: new THREE.Vector3(0, startY, 0),
-    velocity: new THREE.Vector3(0.04, -0.2, 0.01),
+    velocity: new THREE.Vector3(0, -0.2, 0),
     railIndex: -1,
     railS: 0,
     railV: 0,
@@ -232,16 +239,25 @@ function simulateMarble(time, startY) {
     bounces: 0
   };
 
-  let remaining = Math.min(time, 8.4);
+  let remaining = Math.min(time, 4.2);
   while (remaining > 0) {
     const step = Math.min(dt, remaining);
     stepPhysics(state, step, gravity);
     remaining -= step;
   }
 
+  const lift = smoothstep(4.2, 5.65, time);
+  if (lift > 0) {
+    const liftedY = lerp(state.position.y, MORPH_START_Y, easeInOutCubic(lift));
+    state.position.set(0, liftedY, 0);
+    state.velocity.set(0, 0, 0);
+    state.squash *= 1 - lift;
+    state.impact *= 1 - lift;
+  }
+
   return {
     position: state.position,
-    scale: 1,
+    scale: lerp(1, 1.08, logoMorph),
     spin: state.spin,
     squash: state.squash,
     impact: state.impact,
@@ -282,12 +298,12 @@ function stepPhysics(state, dt, gravity) {
   if (state.position.y <= FLOOR_Y && state.velocity.y < 0) {
     state.position.y = FLOOR_Y;
     const bouncePower = Math.abs(state.velocity.y);
-    if (bouncePower > 0.7 && state.bounces < 4) {
-      state.velocity.y = bouncePower * (state.bounces === 0 ? 0.58 : 0.42);
-      state.velocity.x *= 0.78;
-      state.velocity.z *= 0.78;
-      state.squash = Math.min(1, 0.32 + bouncePower * 0.05);
-      state.impact = Math.min(1, 0.38 + bouncePower * 0.08);
+    if (bouncePower > 0.7 && state.bounces < 2) {
+      state.velocity.y = bouncePower * (state.bounces === 0 ? 0.58 : 0.35);
+      state.velocity.x = 0;
+      state.velocity.z = 0;
+      state.squash = Math.min(1, 0.3 + bouncePower * 0.045);
+      state.impact = Math.min(1, 0.34 + bouncePower * 0.07);
       state.bounces += 1;
     } else {
       state.velocity.set(0, 0, 0);
@@ -419,18 +435,92 @@ function projectToScreen(worldPosition) {
 }
 
 function updateCamera(t, runTime) {
-  const reveal = smoothstep(0.2, 2.25, runTime);
-  const follow = smoothstep(1.1, 5.4, runTime);
   const ball = sphereGroup.position;
 
-  camera.position.x = lerp(0, -0.62, reveal) + ball.x * 0.1 * follow;
-  camera.position.y = lerp(0.36, 2.9, reveal) + ball.y * 0.42 * follow;
-  camera.position.z = lerp(8.7, 11.4, reveal);
+  camera.position.x = 0;
+  camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
+  camera.position.z = 9.4;
 
-  const introLook = new THREE.Vector3(0, -0.03, 0);
-  const runLook = camera.position.clone().add(fixedRunLookDirection);
-  cameraTarget.copy(introLook).lerp(runLook, smoothstep(0.58, 1, reveal));
+  cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   camera.lookAt(cameraTarget);
+}
+
+function updateOrbShape(progress) {
+  const eased = easeInOutCubic(progress);
+  const outer = interpolatePoints(circleShape.outer, logoShape.outer, eased);
+  const innerOpen = smoothstep(0.18, 0.92, eased);
+  const inner = interpolatePoints(circleShape.inner, logoShape.inner, innerOpen);
+  orbPath.setAttribute("d", `${pointsToPath(outer)} ${pointsToPath(inner)}`);
+}
+
+function makeCircleLogoShape() {
+  const center = { x: 50, y: 50 };
+  const outer = [];
+  const inner = [];
+  for (let i = 0; i < SHAPE_POINT_COUNT; i++) {
+    const angle = -Math.PI / 2 + (i / SHAPE_POINT_COUNT) * Math.PI * 2;
+    outer.push({
+      x: center.x + Math.cos(angle) * 47,
+      y: center.y + Math.sin(angle) * 47
+    });
+    inner.push({ x: center.x, y: center.y });
+  }
+  return { outer, inner };
+}
+
+function makeOnitLogoShape() {
+  const outerAnchors = [
+    { x: 18, y: 6 }, { x: 72, y: 6 }, { x: 84, y: 10 }, { x: 91, y: 22 },
+    { x: 91, y: 61 }, { x: 88, y: 72 }, { x: 66, y: 93 }, { x: 56, y: 97 },
+    { x: 18, y: 97 }, { x: 7, y: 92 }, { x: 4, y: 80 }, { x: 4, y: 20 },
+    { x: 8, y: 10 }
+  ];
+  const innerAnchors = [
+    { x: 24, y: 22 }, { x: 72, y: 22 }, { x: 75, y: 24 }, { x: 75, y: 61 },
+    { x: 61, y: 61 }, { x: 55, y: 64 }, { x: 52, y: 70 }, { x: 52, y: 84 },
+    { x: 24, y: 84 }, { x: 21, y: 81 }, { x: 21, y: 25 }
+  ];
+  return {
+    outer: sampleCatmullClosed(outerAnchors, SHAPE_POINT_COUNT),
+    inner: sampleCatmullClosed(innerAnchors, SHAPE_POINT_COUNT)
+  };
+}
+
+function sampleCatmullClosed(points, count) {
+  const samples = [];
+  const segmentCount = points.length;
+  for (let i = 0; i < count; i++) {
+    const segment = (i / count) * segmentCount;
+    const index = Math.floor(segment);
+    const t = segment - index;
+    const p0 = points[(index - 1 + segmentCount) % segmentCount];
+    const p1 = points[index % segmentCount];
+    const p2 = points[(index + 1) % segmentCount];
+    const p3 = points[(index + 2) % segmentCount];
+    samples.push({
+      x: catmull(p0.x, p1.x, p2.x, p3.x, t),
+      y: catmull(p0.y, p1.y, p2.y, p3.y, t)
+    });
+  }
+  return samples;
+}
+
+function catmull(a, b, c, d, t) {
+  const t2 = t * t;
+  const t3 = t2 * t;
+  return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+}
+
+function interpolatePoints(from, to, progress) {
+  return from.map((point, index) => ({
+    x: lerp(point.x, to[index].x, progress),
+    y: lerp(point.y, to[index].y, progress)
+  }));
+}
+
+function pointsToPath(points) {
+  const [first, ...rest] = points;
+  return `M ${first.x.toFixed(2)} ${first.y.toFixed(2)} ${rest.map((point) => `L ${point.x.toFixed(2)} ${point.y.toFixed(2)}`).join(" ")} Z`;
 }
 
 function makeRailFromLayout(rail) {

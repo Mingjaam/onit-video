@@ -50,21 +50,15 @@
     }
 
     .clay-circle {
-      position: absolute;
+      position: fixed;
       left: 50%;
       top: 50%;
+      z-index: 2;
       width: 260px;
       height: 260px;
-      border-radius: 50%;
-      background:
-        radial-gradient(circle at 35% 28%, rgba(255, 255, 255, 0.52), rgba(255, 255, 255, 0) 25%),
-        radial-gradient(circle at 62% 68%, rgba(40, 73, 29, 0.16), rgba(40, 73, 29, 0) 40%),
-        #73ae4e;
-      box-shadow:
-        0 32px 90px rgba(76, 121, 54, 0.22),
-        inset 0 8px 18px rgba(255, 255, 255, 0.26),
-        inset 0 -22px 34px rgba(48, 91, 35, 0.2);
       opacity: 0;
+      overflow: visible;
+      filter: drop-shadow(0 28px 42px rgba(76, 121, 54, 0.2));
       transform: translate(-50%, -50%);
       will-change: left, top, width, height, opacity;
     }
@@ -164,8 +158,17 @@
     <span class="clay-letter" data-index="2">-</span>
     <span class="clay-letter" data-index="3">I</span>
     <span class="clay-letter" data-index="4">T</span>
-    <div class="clay-circle"></div>
   </div>
+  <svg class="clay-circle" viewBox="0 0 100 100" aria-hidden="true">
+    <defs>
+      <radialGradient id="orbGradient" cx="35%" cy="28%" r="72%">
+        <stop offset="0%" stop-color="#48e85b" />
+        <stop offset="58%" stop-color="#08c923" />
+        <stop offset="100%" stop-color="#00b81e" />
+      </radialGradient>
+    </defs>
+    <path id="orbPath" fill="url(#orbGradient)" fill-rule="evenodd"></path>
+  </svg>
   <div class="brand">ON-IT</div>
   <div class="progress"></div>
 
@@ -176,6 +179,6 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=orb-bounce"></script>
+  <script type="module" src="./logo-orb-test.js?v=logo-morph-bounce"></script>
 </body>
 </html>
