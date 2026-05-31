@@ -4,12 +4,15 @@ const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
+const orbShadow = document.querySelector(".orb-shadow");
+const orbRipple = document.querySelector(".orb-ripple");
 
 const SPHERE_RADIUS = 0.38;
 const ROLL_SCALE = 0.9;
 const RAIL_GAP = 0.58;
 const RAIL_TUBE_RADIUS = 0.026;
 const RAIL_CONTACT_RADIUS = SPHERE_RADIUS * ROLL_SCALE * 0.72;
+const FLOOR_Y = -2.95;
 const LOOP_DURATION = 11.8;
 const BALL_COLOR = 0x73ae4e;
 const BOARD_COLOR = 0xbfc2ba;
@@ -131,6 +134,7 @@ const letterLayout = [
 const clock = new THREE.Clock();
 let lastIntroY = 0.44;
 let cameraTarget = new THREE.Vector3(0, -0.03, 0);
+let lastImpact = 0;
 
 animate();
 
@@ -195,13 +199,19 @@ function updateBall(t, dropReady, runTime, circleIn) {
     sphereGroup.scale.setScalar(planarScale);
   } else {
     const motion = simulateMarble(runTime, lastIntroY);
+    lastImpact = motion.impact;
     sphereGroup.position.copy(motion.position);
-    sphereGroup.scale.setScalar(motion.scale);
+    sphereGroup.scale.set(
+      motion.scale * (1 + motion.squash * 0.18),
+      motion.scale * (1 - motion.squash * 0.22),
+      motion.scale
+    );
     sphereGroup.rotation.y = 0;
     sphereGroup.rotation.x = 0;
     return;
   }
 
+  lastImpact = 0;
   sphereGroup.rotation.y = 0;
   sphereGroup.rotation.x = 0;
 }
@@ -216,7 +226,10 @@ function simulateMarble(time, startY) {
     railIndex: -1,
     railS: 0,
     railV: 0,
-    spin: 0
+    spin: 0,
+    squash: 0,
+    impact: 0,
+    bounces: 0
   };
 
   let remaining = Math.min(time, 8.4);
@@ -229,7 +242,10 @@ function simulateMarble(time, startY) {
   return {
     position: state.position,
     scale: 1,
-    spin: state.spin
+    spin: state.spin,
+    squash: state.squash,
+    impact: state.impact,
+    floorY: FLOOR_Y
   };
 }
 
@@ -260,6 +276,25 @@ function stepPhysics(state, dt, gravity) {
   state.velocity.addScaledVector(gravity, dt);
   state.position.addScaledVector(state.velocity, dt);
   state.spin += state.velocity.length() * dt * 0.42;
+  state.squash = Math.max(0, state.squash - dt * 3.6);
+  state.impact = Math.max(0, state.impact - dt * 1.8);
+
+  if (state.position.y <= FLOOR_Y && state.velocity.y < 0) {
+    state.position.y = FLOOR_Y;
+    const bouncePower = Math.abs(state.velocity.y);
+    if (bouncePower > 0.7 && state.bounces < 4) {
+      state.velocity.y = bouncePower * (state.bounces === 0 ? 0.58 : 0.42);
+      state.velocity.x *= 0.78;
+      state.velocity.z *= 0.78;
+      state.squash = Math.min(1, 0.32 + bouncePower * 0.05);
+      state.impact = Math.min(1, 0.38 + bouncePower * 0.08);
+      state.bounces += 1;
+    } else {
+      state.velocity.set(0, 0, 0);
+      state.squash = Math.max(state.squash, 0.14);
+      state.impact = Math.max(state.impact, 0.18);
+    }
+  }
 
   const hit = findRailHit(previous, state.position, state.railIndex);
   if (hit) {
@@ -343,18 +378,36 @@ function syncClayCircleToSphere() {
 
   const center = new THREE.Vector3(0, 0, 0);
   const edge = new THREE.Vector3(SPHERE_RADIUS, 0, 0);
+  const floor = new THREE.Vector3(sphereGroup.position.x, FLOOR_Y, sphereGroup.position.z);
   sphereGroup.localToWorld(center);
   sphereGroup.localToWorld(edge);
 
   const centerPx = projectToScreen(center);
   const edgePx = projectToScreen(edge);
+  const floorPx = projectToScreen(floor);
   const radiusPx = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
   const diameter = Math.max(1, radiusPx * 2);
+  const floorDistance = Math.max(0, Math.min(1, (floorPx.y - centerPx.y) / Math.max(1, diameter * 3.2)));
+  const contact = 1 - floorDistance;
 
   clayCircle.style.left = `${centerPx.x.toFixed(2)}px`;
   clayCircle.style.top = `${centerPx.y.toFixed(2)}px`;
   clayCircle.style.width = `${diameter.toFixed(2)}px`;
   clayCircle.style.height = `${diameter.toFixed(2)}px`;
+
+  orbShadow.style.left = `${floorPx.x.toFixed(2)}px`;
+  orbShadow.style.top = `${floorPx.y.toFixed(2)}px`;
+  orbShadow.style.width = `${(diameter * (0.48 + contact * 0.42)).toFixed(2)}px`;
+  orbShadow.style.height = `${(diameter * (0.09 + contact * 0.04)).toFixed(2)}px`;
+  orbShadow.style.opacity = (clayCircle.style.opacity * (0.08 + contact * 0.34)).toFixed(3);
+
+  const rippleStrength = lastImpact;
+  const rippleSize = diameter * (1.05 + rippleStrength * 3.2);
+  orbRipple.style.left = `${floorPx.x.toFixed(2)}px`;
+  orbRipple.style.top = `${floorPx.y.toFixed(2)}px`;
+  orbRipple.style.width = `${rippleSize.toFixed(2)}px`;
+  orbRipple.style.height = `${(rippleSize * 0.36).toFixed(2)}px`;
+  orbRipple.style.opacity = Math.min(0.55, rippleStrength * 1.9).toFixed(3);
 }
 
 function projectToScreen(worldPosition) {
