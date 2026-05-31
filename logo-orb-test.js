@@ -62,60 +62,72 @@ scene.add(floorLine);
 const railGroup = new THREE.Group();
 scene.add(railGroup);
 
-const railCurve = new THREE.CatmullRomCurve3([
-  new THREE.Vector3(-2.1, -1.72, 0.2),
-  new THREE.Vector3(-1.0, -1.9, 0.62),
-  new THREE.Vector3(0.25, -1.74, 0.96),
-  new THREE.Vector3(1.55, -1.88, 1.34),
-  new THREE.Vector3(2.75, -1.62, 1.68)
-]);
+const railCenterPoints = [
+  new THREE.Vector3(-2.7, -2.05, 0.82),
+  new THREE.Vector3(-1.45, -2.15, 1.08),
+  new THREE.Vector3(-0.1, -2.06, 1.36),
+  new THREE.Vector3(1.3, -2.2, 1.72),
+  new THREE.Vector3(2.9, -2.34, 2.1),
+  new THREE.Vector3(4.3, -2.48, 2.45)
+];
+
+const railCurve = new THREE.CatmullRomCurve3(railCenterPoints);
 railCurve.curveType = "catmullrom";
-railCurve.tension = 0.62;
+railCurve.tension = 0.5;
 
 const rideCurve = new THREE.CatmullRomCurve3(
-  railCurve.points.map((point) => point.clone().add(new THREE.Vector3(0, SPHERE_RADIUS * 0.28, 0)))
+  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, SPHERE_RADIUS * 0.31, 0)))
 );
 rideCurve.curveType = "catmullrom";
-rideCurve.tension = 0.62;
+rideCurve.tension = 0.5;
+
+const railOffset = 0.22;
+const leftRailCurve = new THREE.CatmullRomCurve3(
+  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, 0, -railOffset)))
+);
+const rightRailCurve = new THREE.CatmullRomCurve3(
+  railCenterPoints.map((point) => point.clone().add(new THREE.Vector3(0, 0, railOffset)))
+);
+[leftRailCurve, rightRailCurve].forEach((curve) => {
+  curve.curveType = "catmullrom";
+  curve.tension = 0.5;
+});
+
+const railLength = rideCurve.getLength();
 
 const railMaterial = new THREE.MeshPhysicalMaterial({
-  color: 0x73ae4e,
-  roughness: 0.36,
-  metalness: 0.22,
-  clearcoat: 0.58,
-  clearcoatRoughness: 0.26,
-  transparent: true,
-  opacity: 0
+  color: 0x343833,
+  roughness: 0.29,
+  metalness: 0.72,
+  clearcoat: 0.32,
+  clearcoatRoughness: 0.24
 });
 
-const rail = new THREE.Mesh(
-  new THREE.TubeGeometry(railCurve, 96, 0.045, 14, false),
-  railMaterial
-);
-rail.castShadow = true;
-rail.receiveShadow = true;
-railGroup.add(rail);
+const leftRail = makeRail(leftRailCurve);
+const rightRail = makeRail(rightRailCurve);
+railGroup.add(leftRail, rightRail);
 
-const railPads = [railCurve.points[0], railCurve.points[2], railCurve.points[4]].map((point) => {
-  const pad = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.36, 0.42, 0.08, 48),
-    new THREE.MeshPhysicalMaterial({
-      color: 0x73ae4e,
-      roughness: 0.48,
-      metalness: 0.06,
-      clearcoat: 0.45,
-      clearcoatRoughness: 0.28,
-      transparent: true,
-      opacity: 0
-    })
+const tieMaterial = new THREE.MeshStandardMaterial({
+  color: 0x5d5044,
+  roughness: 0.82,
+  metalness: 0.0
+});
+
+for (let i = 0; i <= 18; i++) {
+  const u = i / 18;
+  const point = railCurve.getPointAt(u);
+  const tangent = railCurve.getTangentAt(u);
+  const tie = new THREE.Mesh(
+    new THREE.BoxGeometry(0.1, 0.055, 0.72),
+    tieMaterial
   );
-  pad.position.copy(point);
-  pad.position.y -= 0.07;
-  pad.castShadow = true;
-  pad.receiveShadow = true;
-  railGroup.add(pad);
-  return pad;
-});
+  tie.position.copy(point);
+  tie.position.y -= 0.085;
+  tie.rotation.y = Math.atan2(tangent.z, tangent.x) + Math.PI / 2;
+  tie.castShadow = true;
+  tie.receiveShadow = true;
+  railGroup.add(tie);
+}
 
 const sphereGroup = new THREE.Group();
 sphereGroup.position.set(0, 0.44, 0);
@@ -234,7 +246,6 @@ function updateSphere(t, inflate, fallTime, circleIn) {
     );
     contactShadow.material.opacity = 0.05 * appear;
     contactShadow.scale.setScalar(0.58 + appear * 0.18);
-    setRailOpacity(0);
   } else {
     const motion = railMotion(fallTime, lastSettledY);
     sphereGroup.position.copy(motion.position);
@@ -243,15 +254,15 @@ function updateSphere(t, inflate, fallTime, circleIn) {
       motion.scale * (1 + motion.squashY),
       motion.scale * (1 + motion.squashX)
     );
-    setRailOpacity(motion.railOpacity);
     contactShadow.material.opacity = motion.shadow;
     contactShadow.position.x = motion.position.x;
     contactShadow.position.z = motion.position.z;
     contactShadow.scale.set(motion.shadowScale, motion.shadowScale * 0.42, 1);
   }
 
-  sphereGroup.rotation.y = inflate * 1.8 + Math.max(0, fallTime) * 2.1;
-  sphereGroup.rotation.x = Math.sin(t * 1.7) * 0.06 * inflate + Math.max(0, fallTime - 0.72) * 2.8;
+  const rollingSpin = fallTime > 0 ? railMotion(fallTime, lastSettledY).spin : 0;
+  sphereGroup.rotation.y = inflate * 1.8 + Math.max(0, fallTime) * 0.35;
+  sphereGroup.rotation.x = Math.sin(t * 1.7) * 0.06 * inflate + rollingSpin;
 }
 
 function syncClayCircleToSphere() {
@@ -283,74 +294,73 @@ function projectToScreen(worldPosition) {
 
 function railMotion(time, startY) {
   const railStart = rideCurve.getPointAt(0);
-  const fallDuration = 0.9;
-  const rollDuration = 3.2;
-  const railOpacity = smoothstep(0.0, 0.52, time);
+  const fallDuration = 1.05;
+  const rollDuration = 4.2;
 
   if (time < fallDuration) {
     const p = time / fallDuration;
     const eased = easeInCubic(p);
     const start = new THREE.Vector3(0, startY, 0);
     const position = new THREE.Vector3().lerpVectors(start, railStart, eased);
-    position.y += Math.sin(p * Math.PI) * 0.18;
+    position.y += Math.sin(p * Math.PI) * 0.08;
     const approach = smoothstep(0.15, 1, p);
     const impact = smoothstep(0.78, 1, p);
 
     return {
       position,
-      scale: lerp(1, 0.82, approach),
+      scale: lerp(1, 0.74, approach),
       squashX: impact * 0.12,
       squashY: -impact * 0.16,
-      shadow: lerp(0.04, 0.22, p),
+      shadow: lerp(0.04, 0.16, p),
       shadowScale: lerp(0.48, 0.92, p),
-      railOpacity
+      spin: p * 0.8
     };
   }
 
-  const rollTime = Math.min(1, (time - fallDuration) / rollDuration);
-  const u = easeInOutCubic(rollTime);
+  const elapsed = time - fallDuration;
+  const rollTime = Math.min(1, elapsed / rollDuration);
+  const u = Math.min(1, 0.16 * rollTime + 0.84 * rollTime * rollTime);
   const position = rideCurve.getPointAt(u);
-  const beat = Math.abs(Math.sin((time - fallDuration) * Math.PI * 2.0));
-  position.y += beat * 0.025 * (1 - rollTime * 0.35);
+  const tangent = rideCurve.getTangentAt(u);
+  position.y += Math.abs(Math.sin(elapsed * Math.PI * 2.2)) * 0.01 * (1 - rollTime);
 
   const landingPulse = Math.max(0, 1 - (time - fallDuration) * 4.2);
-  railPads.forEach((pad, index) => {
-    const padPulse = index === 0 ? landingPulse : Math.max(0, 1 - Math.abs(u - index * 0.5) * 8) * 0.18;
-    pad.scale.set(1 + padPulse * 0.22, 1, 1 + padPulse * 0.22);
-  });
 
   return {
     position,
-    scale: lerp(0.82, 0.72, rollTime),
+    scale: 0.74,
     squashX: landingPulse * 0.08,
     squashY: -landingPulse * 0.12,
-    shadow: 0.18,
+    shadow: 0.14,
     shadowScale: lerp(0.86, 0.72, rollTime),
-    railOpacity
+    spin: (u * railLength) / (SPHERE_RADIUS * 0.74) + tangent.x * 0.25
   };
 }
 
-function setRailOpacity(opacity) {
-  rail.material.opacity = opacity;
-  railPads.forEach((pad) => {
-    pad.material.opacity = opacity;
-  });
-}
-
 function updateCamera(t, inflate, fallTime) {
-  const pullback = smoothstep(0.0, 1.85, fallTime);
+  const pullback = smoothstep(0.0, 2.2, fallTime);
   camera.position.x = Math.sin(t * 0.55) * 0.08 + sphereGroup.position.x * 0.11 * pullback;
-  camera.position.y = lerp(0.36, 0.58, inflate) + pullback * 1.25;
-  camera.position.z = lerp(8.7, 12.2, pullback);
+  camera.position.y = lerp(0.36, 0.58, inflate) + pullback * 1.55;
+  camera.position.z = lerp(8.7, 13.4, pullback);
   cameraTarget.lerp(
     new THREE.Vector3(
       sphereGroup.position.x * pullback,
-      lerp(-0.03, -1.05, pullback),
+      lerp(-0.03, -1.58, pullback),
       sphereGroup.position.z * pullback
     ),
     0.12
   );
   camera.lookAt(cameraTarget);
+}
+
+function makeRail(curve) {
+  const mesh = new THREE.Mesh(
+    new THREE.TubeGeometry(curve, 120, 0.032, 12, false),
+    railMaterial.clone()
+  );
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
 }
 
 function responsiveUnit() {
