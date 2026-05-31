@@ -15,7 +15,7 @@
       height: 100%;
       margin: 0;
       overflow: hidden;
-      background: #f4f6f0;
+      background: #050807;
       font-family: Inter, "Helvetica Neue", Arial, sans-serif;
     }
 
@@ -37,14 +37,14 @@
       position: absolute;
       left: 50%;
       top: 43%;
-      color: #73ae4e;
+      color: #08c923;
       font-size: clamp(76px, 13vw, 190px);
       font-weight: 950;
       line-height: 0.9;
       letter-spacing: 0;
       text-shadow:
-        0 22px 45px rgba(52, 91, 37, 0.13),
-        inset 0 3px 5px rgba(255, 255, 255, 0.5);
+        0 20px 48px rgba(8, 201, 35, 0.34),
+        0 0 18px rgba(72, 232, 91, 0.18);
       transform: translate(-50%, -50%);
       will-change: transform, opacity, filter;
     }
@@ -58,7 +58,9 @@
       height: 260px;
       opacity: 0;
       overflow: visible;
-      filter: drop-shadow(0 28px 42px rgba(76, 121, 54, 0.2));
+      filter:
+        drop-shadow(0 28px 42px rgba(0, 0, 0, 0.42))
+        drop-shadow(0 0 28px rgba(8, 201, 35, 0.2));
       transform: translate(-50%, -50%);
       will-change: left, top, width, height, opacity;
     }
@@ -79,14 +81,14 @@
       width: 180px;
       height: 28px;
       border-radius: 50%;
-      background: radial-gradient(ellipse, rgba(45, 65, 36, 0.24), rgba(45, 65, 36, 0) 70%);
+      background: radial-gradient(ellipse, rgba(0, 0, 0, 0.46), rgba(8, 201, 35, 0.1) 48%, rgba(8, 201, 35, 0) 72%);
       filter: blur(1px);
     }
 
     .orb-ripple {
       width: 120px;
       height: 120px;
-      border: 2px solid rgba(115, 174, 78, 0.28);
+      border: 2px solid rgba(8, 201, 35, 0.28);
       border-radius: 50%;
     }
 
@@ -95,7 +97,7 @@
       left: 40px;
       top: 34px;
       z-index: 3;
-      color: rgba(20, 35, 28, 0.7);
+      color: rgba(8, 201, 35, 0.82);
       font-size: 15px;
       font-weight: 800;
       letter-spacing: 0.18em;
@@ -109,7 +111,7 @@
       z-index: 3;
       height: 2px;
       overflow: hidden;
-      background: rgba(20, 35, 28, 0.12);
+      background: rgba(8, 201, 35, 0.15);
       border-radius: 999px;
     }
 
@@ -120,7 +122,7 @@
       height: 100%;
       transform: scaleX(var(--progress, 0));
       transform-origin: left center;
-      background: #73ae4e;
+      background: #08c923;
       border-radius: inherit;
     }
 
@@ -179,6 +181,6 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=logo-fold-last"></script>
+  <script type="module" src="./logo-orb-test.js?v=dark-room-physics-2"></script>
 </body>
 </html>
