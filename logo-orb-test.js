@@ -143,17 +143,17 @@ function animate() {
   const gather = smoothstep(0.9, 2.85, t);
   const circleIn = smoothstep(2.0, 3.25, t);
   const logoOut = smoothstep(2.45, 3.35, t);
-  const inflate = smoothstep(3.35, 4.85, t);
-  const runTime = Math.max(0, t - 4.85);
+  const dropReady = smoothstep(3.12, 3.35, t);
+  const runTime = Math.max(0, t - 3.35);
 
-  updateBall(t, inflate, runTime, circleIn);
-  updateCamera(t, inflate, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut, inflate);
+  updateBall(t, dropReady, runTime, circleIn);
+  updateCamera(t, runTime);
+  updateClayLogo(t, gather, circleIn, logoOut);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
+function updateClayLogo(t, gather, circleIn, logoOut) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -184,27 +184,26 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
-function updateBall(t, inflate, runTime, circleIn) {
-  const morph = smoothstep(0.24, 0.86, inflate);
-  const planarScale = lerp(0.96, ROLL_SCALE, morph) * (0.22 + circleIn * 0.78);
+function updateBall(t, dropReady, runTime, circleIn) {
+  const planarScale = 0.22 + circleIn * 0.78;
 
   sphere.material.opacity = 0;
 
-  if (runTime <= 0) {
-    lastIntroY = lerp(0.44, 0.58, smoothstep(0.35, 1, inflate));
+  if (dropReady < 1) {
+    lastIntroY = 0.44;
     sphereGroup.position.set(0, lastIntroY, 0);
     sphereGroup.scale.setScalar(planarScale);
   } else {
     const motion = simulateMarble(runTime, lastIntroY);
     sphereGroup.position.copy(motion.position);
     sphereGroup.scale.setScalar(motion.scale);
-    sphereGroup.rotation.y = inflate * 1.8 + motion.spin * 0.18;
-    sphereGroup.rotation.x = motion.spin;
+    sphereGroup.rotation.y = 0;
+    sphereGroup.rotation.x = 0;
     return;
   }
 
-  sphereGroup.rotation.y = inflate * 1.8;
-  sphereGroup.rotation.x = Math.sin(t * 1.7) * 0.04 * inflate;
+  sphereGroup.rotation.y = 0;
+  sphereGroup.rotation.x = 0;
 }
 
 function simulateMarble(time, startY) {
@@ -229,7 +228,7 @@ function simulateMarble(time, startY) {
 
   return {
     position: state.position,
-    scale: ROLL_SCALE,
+    scale: 1,
     spin: state.spin
   };
 }
@@ -366,7 +365,7 @@ function projectToScreen(worldPosition) {
   };
 }
 
-function updateCamera(t, inflate, runTime) {
+function updateCamera(t, runTime) {
   const reveal = smoothstep(0.2, 2.25, runTime);
   const follow = smoothstep(1.1, 5.4, runTime);
   const ball = sphereGroup.position;
