@@ -17,15 +17,11 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 28.2;
+const LOOP_DURATION = 14.8;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
-const DOOR_Z = -3.06;
-const DOOR_CENTER_Y = -0.22;
-const DOOR_WIDTH = 2.08;
-const DOOR_HEIGHT = 3.58;
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -83,16 +79,6 @@ const rim = new THREE.PointLight(0x74ff8a, 1.4, 11, 2);
 rim.position.set(-3.4, -1.8, 2.1);
 scene.add(rim);
 
-const roomLight = new THREE.PointLight(0xfff0c5, 0, 12, 2);
-roomLight.position.set(0, 2.4, -6.0);
-roomLight.castShadow = true;
-roomLight.shadow.mapSize.set(1024, 1024);
-scene.add(roomLight);
-
-const roomAccent = new THREE.PointLight(0x61ff78, 0, 8, 2);
-roomAccent.position.set(-2.4, 0.6, -6.5);
-scene.add(roomAccent);
-
 const trackGroup = new THREE.Group();
 trackGroup.visible = true;
 scene.add(trackGroup);
@@ -116,37 +102,10 @@ const screenMaterial = new THREE.MeshStandardMaterial({
   roughness: 0.5,
   metalness: 0.0
 });
-const portalMaterial = new THREE.MeshPhysicalMaterial({
-  color: BALL_COLOR,
-  roughness: 0.34,
-  metalness: 0.04,
-  clearcoat: 0.58,
-  clearcoatRoughness: 0.28,
-  emissive: BALL_COLOR,
-  emissiveIntensity: 0.18,
-  transparent: true,
-  opacity: 0
-});
-const doorMaterial = new THREE.MeshStandardMaterial({
-  color: 0x111913,
-  roughness: 0.72,
-  metalness: 0.03,
-  transparent: true,
-  opacity: 0
-});
-const switchMaterial = new THREE.MeshStandardMaterial({
-  color: 0x1a241d,
-  roughness: 0.48,
-  metalness: 0.05,
-  transparent: true,
-  opacity: 0
-});
 
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
 addRoom();
-
-const doorRig = buildDoorRig();
 
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
@@ -208,30 +167,15 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
-  const doorState = getDoorState(t);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
-  updateCamera(t, runTime, doorState);
-  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, doorState);
-  updateDoorRig(t, doorState);
+  updateCamera(t, runTime);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph);
 
   renderer.render(scene, camera);
 }
 
-function getDoorState(t) {
-  return {
-    grow: smoothstep(14.05, 16.35, t),
-    switchIn: smoothstep(15.65, 17.35, t),
-    lightOn: smoothstep(17.25, 18.55, t),
-    open: smoothstep(18.55, 20.7, t),
-    walk: smoothstep(20.15, 23.25, t),
-    turn: smoothstep(23.0, 24.65, t),
-    close: smoothstep(24.5, 25.65, t),
-    shrink: smoothstep(25.75, 27.8, t)
-  };
-}
-
-function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, doorState) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -259,10 +203,7 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, doorState) {
   const circleOpacity = circleIn;
   updateOrbShape(logoMorph);
   syncClayCircleToSphere();
-  if (doorState.grow > 0) syncIconToDoor(doorState);
-  const doorFade = 1 - smoothstep(0.18, 0.8, doorState.open);
-  const visibleAsIcon = Math.max(doorFade, smoothstep(0.2, 1, doorState.shrink));
-  clayCircle.style.opacity = (circleOpacity * visibleAsIcon).toFixed(3);
+  clayCircle.style.opacity = circleOpacity.toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
@@ -508,78 +449,15 @@ function projectToScreen(worldPosition) {
   };
 }
 
-function updateCamera(t, runTime, doorState) {
+function updateCamera(t, runTime) {
   const ball = sphereGroup.position;
-  let cameraRoll = 0;
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
   camera.position.z = 9.4;
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
-
-  if (doorState.grow > 0) {
-    const settle = easeInOutCubic(doorState.grow);
-    camera.position.x = lerp(camera.position.x, 0, settle);
-    camera.position.y = lerp(camera.position.y, 0.78, settle);
-    camera.position.z = lerp(camera.position.z, 8.85, settle);
-    cameraTarget.set(
-      lerp(cameraTarget.x, 0, settle),
-      lerp(cameraTarget.y, DOOR_CENTER_Y + 0.2, settle),
-      lerp(cameraTarget.z, DOOR_Z, settle)
-    );
-  }
-
-  if (doorState.walk > 0) {
-    const walk = easeInOutCubic(doorState.walk);
-    const step = Math.sin((20.15 + walk * 3.1) * 10.4);
-    const drift = Math.sin((20.15 + walk * 3.1) * 2.4);
-    camera.position.x = drift * 0.025;
-    camera.position.y = lerp(0.78, 0.46, walk) + Math.abs(step) * 0.024;
-    camera.position.z = lerp(8.85, -5.65, walk);
-    cameraTarget.set(
-      Math.sin(walk * Math.PI) * 0.08,
-      lerp(DOOR_CENTER_Y + 0.2, 0.05, walk),
-      lerp(DOOR_Z, -7.0, walk)
-    );
-    cameraRoll = drift * 0.006;
-  }
-
-  if (doorState.turn > 0) {
-    const turn = easeInOutCubic(doorState.turn);
-    camera.position.x += Math.sin(turn * Math.PI) * 0.22;
-    cameraTarget.lerp(new THREE.Vector3(0, DOOR_CENTER_Y + 0.18, DOOR_Z), turn);
-  }
-
-  if (doorState.shrink > 0.85) {
-    const reset = smoothstep(0.85, 1, doorState.shrink);
-    camera.position.lerp(new THREE.Vector3(0, 0.7, 8.1), reset);
-    cameraTarget.lerp(new THREE.Vector3(-2.45, 0.3, DOOR_Z), reset);
-  }
-
   camera.lookAt(cameraTarget);
-  camera.rotation.z += cameraRoll;
-}
-
-function syncIconToDoor(doorState) {
-  const center = projectToScreen(new THREE.Vector3(0, DOOR_CENTER_Y, DOOR_Z + 0.08));
-  const left = projectToScreen(new THREE.Vector3(-DOOR_WIDTH / 2, DOOR_CENTER_Y, DOOR_Z + 0.08));
-  const right = projectToScreen(new THREE.Vector3(DOOR_WIDTH / 2, DOOR_CENTER_Y, DOOR_Z + 0.08));
-  const top = projectToScreen(new THREE.Vector3(0, DOOR_CENTER_Y + DOOR_HEIGHT / 2, DOOR_Z + 0.08));
-  const bottom = projectToScreen(new THREE.Vector3(0, DOOR_CENTER_Y - DOOR_HEIGHT / 2, DOOR_Z + 0.08));
-  const currentWidth = parseFloat(clayCircle.style.width) || 1;
-  const currentHeight = parseFloat(clayCircle.style.height) || 1;
-  const grow = easeInOutCubic(doorState.grow);
-  const shrink = easeInOutCubic(doorState.shrink);
-  const width = Math.max(1, Math.abs(right.x - left.x));
-  const height = Math.max(1, Math.abs(bottom.y - top.y));
-  const finalCenter = projectToScreen(new THREE.Vector3(-2.45, DOOR_CENTER_Y + 0.34, DOOR_Z + 0.12));
-  clayCircle.style.left = `${lerp(lerp(parseFloat(clayCircle.style.left) || center.x, center.x, grow), finalCenter.x, shrink).toFixed(2)}px`;
-  clayCircle.style.top = `${lerp(lerp(parseFloat(clayCircle.style.top) || center.y, center.y, grow), finalCenter.y, shrink).toFixed(2)}px`;
-  clayCircle.style.width = `${lerp(lerp(currentWidth, width, grow), width * 0.23, shrink).toFixed(2)}px`;
-  clayCircle.style.height = `${lerp(lerp(currentHeight, height, grow), width * 0.23, shrink).toFixed(2)}px`;
-  orbShadow.style.opacity = (parseFloat(orbShadow.style.opacity) * (1 - grow)).toFixed(3);
-  orbRipple.style.opacity = (parseFloat(orbRipple.style.opacity) * (1 - grow)).toFixed(3);
 }
 
 function updateOrbShape(progress) {
@@ -776,133 +654,6 @@ function addGate(position, rotationY, label, size = 1) {
   trackGroup.add(group);
 }
 
-function buildDoorRig() {
-  const group = new THREE.Group();
-  group.position.set(0, DOOR_CENTER_Y, DOOR_Z + 0.04);
-  group.visible = false;
-  scene.add(group);
-
-  const frame = new THREE.Group();
-  group.add(frame);
-  const frameBars = [
-    { size: [DOOR_WIDTH + 0.34, 0.14, 0.14], pos: [0, DOOR_HEIGHT / 2, 0] },
-    { size: [DOOR_WIDTH + 0.02, 0.14, 0.14], pos: [-0.08, -DOOR_HEIGHT / 2, 0] },
-    { size: [0.14, DOOR_HEIGHT, 0.14], pos: [-DOOR_WIDTH / 2, 0, 0] },
-    { size: [0.14, DOOR_HEIGHT * 0.78, 0.14], pos: [DOOR_WIDTH / 2, DOOR_HEIGHT * 0.11, 0] },
-    { size: [0.9, 0.14, 0.14], pos: [DOOR_WIDTH * 0.34, -DOOR_HEIGHT * 0.34, 0], rot: -0.78 }
-  ];
-  frameBars.forEach((item) => {
-    const mesh = new THREE.Mesh(new THREE.BoxGeometry(...item.size), portalMaterial.clone());
-    mesh.position.set(...item.pos);
-    mesh.rotation.z = item.rot || 0;
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    frame.add(mesh);
-  });
-
-  const innerGlow = new THREE.Mesh(
-    new THREE.PlaneGeometry(DOOR_WIDTH * 0.78, DOOR_HEIGHT * 0.82),
-    new THREE.MeshBasicMaterial({ color: 0xffefc7, transparent: true, opacity: 0, depthWrite: false })
-  );
-  innerGlow.position.z = -0.05;
-  group.add(innerGlow);
-
-  const pivot = new THREE.Group();
-  pivot.position.set(-DOOR_WIDTH / 2 + 0.08, 0, 0.04);
-  group.add(pivot);
-
-  const panel = new THREE.Mesh(new THREE.BoxGeometry(DOOR_WIDTH * 0.78, DOOR_HEIGHT * 0.86, 0.1), doorMaterial.clone());
-  panel.position.set(DOOR_WIDTH * 0.39, 0, 0);
-  panel.castShadow = true;
-  panel.receiveShadow = true;
-  pivot.add(panel);
-
-  const handle = new THREE.Mesh(new THREE.SphereGeometry(0.055, 24, 18), portalMaterial.clone());
-  handle.position.set(DOOR_WIDTH * 0.66, 0.02, 0.07);
-  handle.castShadow = true;
-  pivot.add(handle);
-
-  const switchGroup = new THREE.Group();
-  switchGroup.position.set(DOOR_WIDTH * 0.95, 0.32, 0.08);
-  group.add(switchGroup);
-
-  const switchPlate = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.52, 0.07), switchMaterial.clone());
-  switchPlate.castShadow = true;
-  switchPlate.receiveShadow = true;
-  switchGroup.add(switchPlate);
-
-  const switchLever = new THREE.Mesh(
-    new THREE.BoxGeometry(0.12, 0.31, 0.08),
-    new THREE.MeshStandardMaterial({ color: 0xdfffe6, roughness: 0.34, metalness: 0.02, transparent: true, opacity: 0 })
-  );
-  switchLever.name = "switchLever";
-  switchLever.position.z = 0.055;
-  switchLever.castShadow = true;
-  switchGroup.add(switchLever);
-
-  const innerRoom = new THREE.Group();
-  innerRoom.position.z = -1.7;
-  group.add(innerRoom);
-  const innerMaterial = new THREE.MeshStandardMaterial({ color: 0x1e241d, roughness: 0.72, metalness: 0.02, transparent: true, opacity: 0 });
-  const innerFloor = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 6.5), innerMaterial.clone());
-  innerFloor.rotation.x = -Math.PI / 2;
-  innerFloor.position.set(0, -DOOR_HEIGHT / 2, -1.6);
-  innerFloor.receiveShadow = true;
-  innerRoom.add(innerFloor);
-  const innerBack = new THREE.Mesh(new THREE.PlaneGeometry(4.8, 3.8), innerMaterial.clone());
-  innerBack.position.set(0, 0.15, -4.3);
-  innerBack.receiveShadow = true;
-  innerRoom.add(innerBack);
-  const lightPanel = new THREE.Mesh(
-    new THREE.CircleGeometry(0.42, 48),
-    new THREE.MeshBasicMaterial({ color: 0xffefc7, transparent: true, opacity: 0, depthWrite: false })
-  );
-  lightPanel.position.set(0, 1.42, -2.0);
-  lightPanel.rotation.x = Math.PI;
-  innerRoom.add(lightPanel);
-
-  return { group, frame, pivot, panel, handle, switchGroup, switchLever, innerGlow, innerRoom, lightPanel };
-}
-
-function updateDoorRig(t, state) {
-  const active = state.grow > 0.01;
-  doorRig.group.visible = active;
-  if (!active) return;
-
-  const grow = easeInOutCubic(state.grow);
-  const shrink = easeInOutCubic(state.shrink);
-  const scale = lerp(0.18, 1, grow) * lerp(1, 0.18, shrink);
-  doorRig.group.scale.set(scale, scale, scale);
-  doorRig.group.position.x = lerp(0, -2.45, shrink);
-  doorRig.group.position.y = lerp(DOOR_CENTER_Y, DOOR_CENTER_Y + 0.34, shrink);
-  doorRig.group.position.z = DOOR_Z + 0.04;
-
-  const frameOpacity = grow * lerp(1, 0.96, shrink);
-  setGroupOpacity(doorRig.frame, frameOpacity);
-  setGroupOpacity(doorRig.pivot, frameOpacity * (1 - smoothstep(0.65, 1, shrink)));
-  setGroupOpacity(doorRig.switchGroup, state.switchIn * (1 - shrink));
-  setGroupOpacity(doorRig.innerRoom, state.lightOn * (1 - state.close * 0.65));
-
-  doorRig.innerGlow.material.opacity = state.lightOn * (1 - state.close) * 0.38;
-  doorRig.lightPanel.material.opacity = state.lightOn * 0.64;
-  doorRig.switchLever.rotation.x = lerp(-0.42, 0.42, easeInOutCubic(state.lightOn));
-
-  const openAngle = lerp(0, -1.7, easeInOutCubic(state.open)) * (1 - easeInOutCubic(state.close));
-  doorRig.pivot.rotation.y = openAngle;
-
-  roomLight.intensity = lerp(0, 5.2, easeInOutCubic(state.lightOn)) * (1 - state.close * 0.18);
-  roomAccent.intensity = lerp(0, 1.4, state.lightOn) * (1 - state.close * 0.35);
-  entranceGlow.intensity = lerp(2.2, 0.55, state.walk) * (1 - shrink * 0.45);
-}
-
-function setGroupOpacity(group, opacity) {
-  group.traverse((object) => {
-    if (!object.material) return;
-    object.material.transparent = true;
-    object.material.opacity = Math.max(0, Math.min(1, opacity));
-  });
-}
-
 function addRoom() {
   const floorTexture = makeRoomTexture("#0a1110", "#14241b", "#1e3327", 1);
   floorTexture.wrapS = THREE.RepeatWrapping;
@@ -934,13 +685,10 @@ function addRoom() {
   floor.receiveShadow = true;
   roomGroup.add(floor);
 
-  const wallZ = -3.15;
-  const openingWidth = DOOR_WIDTH + 0.56;
-  const openingHeight = DOOR_HEIGHT + 0.42;
-  addWallPiece(new THREE.Vector3(-(12.5 + openingWidth) / 4, -0.28, wallZ), (12.5 - openingWidth) / 2, 8, wallMaterial);
-  addWallPiece(new THREE.Vector3((12.5 + openingWidth) / 4, -0.28, wallZ), (12.5 - openingWidth) / 2, 8, wallMaterial);
-  addWallPiece(new THREE.Vector3(0, DOOR_CENTER_Y + openingHeight / 2 + (8 - openingHeight) / 4, wallZ), openingWidth, (8 - openingHeight) / 2, wallMaterial);
-  addWallPiece(new THREE.Vector3(0, DOOR_CENTER_Y - openingHeight / 2 - 0.22, wallZ), openingWidth, 0.44, wallMaterial);
+  const backWall = new THREE.Mesh(new THREE.PlaneGeometry(12.5, 8), wallMaterial);
+  backWall.position.set(0, -0.28, -3.15);
+  backWall.receiveShadow = true;
+  roomGroup.add(backWall);
 
   const leftWall = new THREE.Mesh(new THREE.PlaneGeometry(7.4, 8), wallMaterial.clone());
   leftWall.position.set(-6.25, -0.28, 0.15);
@@ -965,13 +713,6 @@ function addRoom() {
   );
   glow.position.set(0, 0.05, -3.12);
   roomGroup.add(glow);
-}
-
-function addWallPiece(position, width, height, material) {
-  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(width, height), material.clone());
-  mesh.position.copy(position);
-  mesh.receiveShadow = true;
-  roomGroup.add(mesh);
 }
 
 function makeRoomTexture(base, line, accent, strength) {
