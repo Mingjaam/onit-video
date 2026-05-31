@@ -18,7 +18,7 @@ const METAL = 0xb8bab7;
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
-    description: "Front-view layout. Rails are centerlines for the marble path.",
+    description: "Front-view layout. Rails and xylophones are disabled for this clean logo-orb test.",
     xMin: -5.2,
     xMax: 5.2,
     yTop: 0.4,
@@ -26,16 +26,8 @@ const TRACK_LAYOUT = {
     zMin: -1.4,
     zMax: 2.8
   },
-  rails: [
-    { start: { x: -0.52, y: -1.28, z: -0.12 }, end: { x: 1.42, y: -2.08, z: 0.36 }, beat: 1 },
-    { start: { x: 1.95, y: -3.0, z: 0.54 }, end: { x: 3.62, y: -3.92, z: 0.98 }, beat: 2 },
-    { start: { x: 4.05, y: -5.08, z: 1.16 }, end: { x: 2.28, y: -6.08, z: 1.72 }, beat: 3 }
-  ],
-  xylophones: [
-    { position: { x: 0.25, y: -0.88, z: -0.18 }, rotationY: -0.22, label: "VOICE", beat: 1 },
-    { position: { x: 2.25, y: -2.12, z: 0.58 }, rotationY: -0.18, label: "PRD", beat: 2 },
-    { position: { x: 3.62, y: -3.62, z: 1.08 }, rotationY: 0.12, label: "iOS", beat: 3 }
-  ]
+  rails: [],
+  xylophones: []
 };
 
 const scene = new THREE.Scene();
@@ -195,7 +187,6 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
 
 function updateBall(t, inflate, runTime, circleIn) {
   const appear = smoothstep(0.04, 0.62, inflate);
-  const clayToSphere = smoothstep(0, 1, inflate);
   const planarScale = 0.22 + circleIn * 0.78;
 
   sphere.material.opacity = appear;
@@ -203,11 +194,7 @@ function updateBall(t, inflate, runTime, circleIn) {
   if (runTime <= 0) {
     lastIntroY = lerp(0.44, 0.7, inflate);
     sphereGroup.position.set(0, lastIntroY, 0);
-    sphereGroup.scale.set(
-      planarScale,
-      planarScale,
-      Math.max(0.012, planarScale * clayToSphere)
-    );
+    sphereGroup.scale.setScalar(planarScale);
   } else {
     const motion = simulateMarble(runTime, lastIntroY);
     sphereGroup.position.copy(motion.position);
