@@ -16,7 +16,7 @@ const RAIL_CONTACT_RADIUS = SPHERE_RADIUS * ROLL_SCALE * 0.72;
 const FLOOR_Y = -2.95;
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 11.8;
+const LOOP_DURATION = 14.8;
 const BALL_COLOR = 0x73ae4e;
 const BOARD_COLOR = 0xbfc2ba;
 const RED = 0xd94435;
@@ -134,6 +134,7 @@ const letterLayout = [
 ];
 
 const circleShape = makeCircleLogoShape();
+const frameShape = makeRoundedFrameShape();
 const logoShape = makeOnitLogoShape();
 const clock = new THREE.Clock();
 let lastIntroY = 0.44;
@@ -154,7 +155,7 @@ function animate() {
   const logoOut = smoothstep(2.45, 3.35, t);
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
-  const logoMorph = smoothstep(5.95, 7.45, runTime);
+  const logoMorph = smoothstep(5.65, 10.85, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updateCamera(t, runTime);
@@ -446,10 +447,12 @@ function updateCamera(t, runTime) {
 }
 
 function updateOrbShape(progress) {
-  const eased = easeInOutCubic(progress);
-  const outer = interpolatePoints(circleShape.outer, logoShape.outer, eased);
-  const innerOpen = smoothstep(0.18, 0.92, eased);
-  const inner = interpolatePoints(circleShape.inner, logoShape.inner, innerOpen);
+  const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
+  const foldProgress = easeInOutCubic(smoothstep(0.58, 1, progress));
+  const holeProgress = easeInOutCubic(smoothstep(0.18, 0.9, progress));
+  const outerFrame = interpolatePoints(circleShape.outer, frameShape.outer, frameProgress);
+  const outer = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
+  const inner = interpolatePoints(circleShape.inner, logoShape.inner, holeProgress);
   orbPath.setAttribute("d", `${pointsToPath(outer)} ${pointsToPath(inner)}`);
 }
 
@@ -468,47 +471,78 @@ function makeCircleLogoShape() {
   return { outer, inner };
 }
 
-function makeOnitLogoShape() {
-  const outerAnchors = [
-    { x: 18, y: 6 }, { x: 72, y: 6 }, { x: 84, y: 10 }, { x: 91, y: 22 },
-    { x: 91, y: 61 }, { x: 88, y: 72 }, { x: 66, y: 93 }, { x: 56, y: 97 },
-    { x: 18, y: 97 }, { x: 7, y: 92 }, { x: 4, y: 80 }, { x: 4, y: 20 },
-    { x: 8, y: 10 }
-  ];
-  const innerAnchors = [
-    { x: 24, y: 22 }, { x: 72, y: 22 }, { x: 75, y: 24 }, { x: 75, y: 61 },
-    { x: 61, y: 61 }, { x: 55, y: 64 }, { x: 52, y: 70 }, { x: 52, y: 84 },
-    { x: 24, y: 84 }, { x: 21, y: 81 }, { x: 21, y: 25 }
-  ];
-  return {
-    outer: sampleCatmullClosed(outerAnchors, SHAPE_POINT_COUNT),
-    inner: sampleCatmullClosed(innerAnchors, SHAPE_POINT_COUNT)
-  };
+function makeRoundedFrameShape() {
+  return makeLogoShapeVariant(0);
 }
 
-function sampleCatmullClosed(points, count) {
-  const samples = [];
-  const segmentCount = points.length;
-  for (let i = 0; i < count; i++) {
-    const segment = (i / count) * segmentCount;
-    const index = Math.floor(segment);
-    const t = segment - index;
-    const p0 = points[(index - 1 + segmentCount) % segmentCount];
-    const p1 = points[index % segmentCount];
-    const p2 = points[(index + 1) % segmentCount];
-    const p3 = points[(index + 2) % segmentCount];
-    samples.push({
-      x: catmull(p0.x, p1.x, p2.x, p3.x, t),
-      y: catmull(p0.y, p1.y, p2.y, p3.y, t)
+function makeOnitLogoShape() {
+  return makeLogoShapeVariant(1);
+}
+
+function makeLogoShapeVariant(fold) {
+  const outer = sampleSegments([
+    ["cubic", { x: 22, y: 8 }, { x: 10, y: 8 }, { x: 4, y: 14 }, { x: 4, y: 26 }, 9],
+    ["line", { x: 4, y: 26 }, { x: 4, y: 75 }, 9],
+    ["cubic", { x: 4, y: 75 }, { x: 4, y: 89 }, { x: 13, y: 98 }, { x: 28, y: 98 }, 10],
+    ["line", { x: 28, y: 98 }, { x: 55, y: 98 }, 8],
+    ["cubic", { x: 55, y: 98 }, lerpPoint({ x: 62, y: 98 }, { x: 62, y: 98 }, fold), lerpPoint({ x: 73, y: 98 }, { x: 66, y: 95 }, fold), lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), 8],
+    ["line", lerpPoint({ x: 78, y: 98 }, { x: 71, y: 90 }, fold), lerpPoint({ x: 96, y: 80 }, { x: 88, y: 73 }, fold), 8],
+    ["cubic", lerpPoint({ x: 96, y: 80 }, { x: 88, y: 73 }, fold), lerpPoint({ x: 96, y: 72 }, { x: 92, y: 69 }, fold), { x: 96, y: 64 }, { x: 96, y: 55 }, 9],
+    ["line", { x: 96, y: 55 }, { x: 96, y: 29 }, 7],
+    ["cubic", { x: 96, y: 29 }, { x: 96, y: 16 }, { x: 87, y: 8 }, { x: 74, y: 8 }, 10],
+    ["line", { x: 74, y: 8 }, { x: 22, y: 8 }, 10]
+  ]);
+
+  const inner = sampleSegments([
+    ["cubic", { x: 28, y: 23 }, { x: 25, y: 23 }, { x: 23, y: 25 }, { x: 23, y: 28 }, 7],
+    ["line", { x: 23, y: 28 }, { x: 23, y: 74 }, 10],
+    ["cubic", { x: 23, y: 74 }, { x: 23, y: 77 }, { x: 25, y: 79 }, { x: 28, y: 79 }, 7],
+    ["line", { x: 28, y: 79 }, { x: 55, y: 79 }, 8],
+    ["line", { x: 55, y: 79 }, lerpPoint({ x: 66, y: 79 }, { x: 55, y: 70 }, fold), 7],
+    ["cubic", lerpPoint({ x: 66, y: 79 }, { x: 55, y: 70 }, fold), lerpPoint({ x: 74, y: 79 }, { x: 55, y: 62 }, fold), lerpPoint({ x: 78, y: 70 }, { x: 61, y: 57 }, fold), { x: 68, y: 57 }, 10],
+    ["line", { x: 68, y: 57 }, { x: 78, y: 57 }, 6],
+    ["line", { x: 78, y: 57 }, { x: 78, y: 28 }, 8],
+    ["cubic", { x: 78, y: 28 }, { x: 78, y: 25 }, { x: 76, y: 23 }, { x: 73, y: 23 }, 7],
+    ["line", { x: 73, y: 23 }, { x: 28, y: 23 }, 18]
+  ]);
+
+  return { outer, inner };
+}
+
+function sampleSegments(segments) {
+  return segments.flatMap((segment) => {
+    if (segment[0] === "line") return sampleLine(segment[1], segment[2], segment[3]);
+    return sampleCubic(segment[1], segment[2], segment[3], segment[4], segment[5]);
+  });
+}
+
+function sampleLine(start, end, steps) {
+  const points = [];
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    points.push({ x: lerp(start.x, end.x, t), y: lerp(start.y, end.y, t) });
+  }
+  return points;
+}
+
+function sampleCubic(start, controlA, controlB, end, steps) {
+  const points = [];
+  for (let i = 0; i < steps; i++) {
+    const t = i / steps;
+    const inv = 1 - t;
+    points.push({
+      x: (inv ** 3) * start.x + 3 * (inv ** 2) * t * controlA.x + 3 * inv * (t ** 2) * controlB.x + (t ** 3) * end.x,
+      y: (inv ** 3) * start.y + 3 * (inv ** 2) * t * controlA.y + 3 * inv * (t ** 2) * controlB.y + (t ** 3) * end.y
     });
   }
-  return samples;
+  return points;
 }
 
-function catmull(a, b, c, d, t) {
-  const t2 = t * t;
-  const t3 = t2 * t;
-  return 0.5 * ((2 * b) + (-a + c) * t + (2 * a - 5 * b + 4 * c - d) * t2 + (-a + 3 * b - 3 * c + d) * t3);
+function lerpPoint(from, to, progress) {
+  return {
+    x: lerp(from.x, to.x, progress),
+    y: lerp(from.y, to.y, progress)
+  };
 }
 
 function interpolatePoints(from, to, progress) {
