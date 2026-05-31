@@ -123,6 +123,7 @@ let ballState = null;
 let spin = 0;
 let lastTime = performance.now();
 let activeTool = "select";
+let activeRailIndexForAppend = null;
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -297,30 +298,62 @@ function railTangentAtDistance(rail, s) {
 
 function setTool(nextTool) {
   activeTool = nextTool;
+  if (nextTool === "rail") {
+    activeRailIndexForAppend = null;
+    draftPoints = [];
+    rebuildDraft();
+  }
   selectModeBtn.classList.toggle("active", activeTool === "select");
   addRailPointBtn.classList.toggle("active", activeTool === "rail");
   addXyloBtn.classList.toggle("active", activeTool === "xylophone");
 }
 
 function addRailPointAt(point) {
+  if (activeRailIndexForAppend !== null && rails[activeRailIndexForAppend]) {
+    const rail = rails[activeRailIndexForAppend];
+    rail.points.push(roundPoint(point));
+    selected = {
+      type: "railPoint",
+      railIndex: activeRailIndexForAppend,
+      pointIndex: rail.points.length - 1
+    };
+    refreshScene();
+    return;
+  }
+
   draftPoints.push(roundPoint(point));
-  rebuildDraft();
-  exportLayout();
+  if (draftPoints.length < 2) {
+    rebuildDraft();
+    exportLayout();
+    return;
+  }
+
+  const railIndex = rails.length;
+  rails.push({
+    points: draftPoints.map((draftPoint) => ({ ...draftPoint })),
+    beat: rails.length + 1
+  });
+  activeRailIndexForAppend = railIndex;
+  draftPoints = [];
+  selected = { type: "railPoint", railIndex, pointIndex: 1 };
+  refreshScene();
 }
 
 function finishDraftRail() {
-  if (draftPoints.length < 2) return;
-  rails.push({
-    points: draftPoints.map((point) => ({ ...point })),
-    beat: rails.length + 1
-  });
+  if (draftPoints.length >= 2) {
+    rails.push({
+      points: draftPoints.map((point) => ({ ...point })),
+      beat: rails.length + 1
+    });
+  }
+  activeRailIndexForAppend = null;
   draftPoints = [];
-  selected = { type: "railPoint", railIndex: rails.length - 1, pointIndex: 0 };
   refreshScene();
 }
 
 function clearDraft() {
   draftPoints = [];
+  activeRailIndexForAppend = null;
   rebuildDraft();
   exportLayout();
 }
@@ -345,7 +378,7 @@ function refreshScene() {
   handleObjects = [];
 
   runtimeRails.forEach((rail, index) => {
-    addParallelRails(rail.curve);
+    addParallelRails(rail.curve, trackGroup);
     addRailPointHandles(rails[index], index);
   });
   xylophones.forEach((item, index) => addXylophone(item, index));
@@ -357,13 +390,12 @@ function refreshScene() {
 function rebuildDraft() {
   clearGroup(draftGroup);
   draftPoints.forEach((point, index) => {
-    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.06, 18, 18), draftMaterial);
+    const marker = new THREE.Mesh(new THREE.SphereGeometry(0.075, 18, 18), draftMaterial);
     marker.position.set(point.x, point.y, point.z);
     draftGroup.add(marker);
     if (index > 0) {
       const rail = makeRuntimeRail(draftPoints.slice(index - 1, index + 1));
-      const mesh = new THREE.Mesh(new THREE.TubeGeometry(rail.curve, 24, RAIL_TUBE_RADIUS, 8, false), draftMaterial);
-      draftGroup.add(mesh);
+      addParallelRails(rail.curve, draftGroup);
     }
   });
 }
@@ -381,7 +413,7 @@ function makeRuntimeRail(points) {
   };
 }
 
-function addParallelRails(curve) {
+function addParallelRails(curve, targetGroup) {
   const samples = 90;
   const left = [];
   const right = [];
@@ -395,8 +427,8 @@ function addParallelRails(curve) {
     right.push(p.clone().sub(normal));
   }
 
-  trackGroup.add(railMesh(new THREE.CatmullRomCurve3(left)));
-  trackGroup.add(railMesh(new THREE.CatmullRomCurve3(right)));
+  targetGroup.add(railMesh(new THREE.CatmullRomCurve3(left)));
+  targetGroup.add(railMesh(new THREE.CatmullRomCurve3(right)));
 }
 
 function railMesh(curve) {
@@ -648,6 +680,7 @@ function clearLayout() {
   rails.length = 0;
   xylophones.length = 0;
   draftPoints = [];
+  activeRailIndexForAppend = null;
   selected = null;
   refreshScene();
 }
@@ -690,7 +723,8 @@ function updateStats() {
   const ballText = ballState
     ? `ball ${ballState.position.x.toFixed(2)}, ${ballState.position.y.toFixed(2)}, ${ballState.position.z.toFixed(2)}`
     : "ball not spawned";
-  stats.textContent = `tool ${activeTool} | ${rails.length} rails, ${draftPoints.length} draft points, ${xylophones.length} xylophones | ${ballText}`;
+  const railModeText = activeRailIndexForAppend === null ? "new rail" : `editing rail ${activeRailIndexForAppend + 1}`;
+  stats.textContent = `tool ${activeTool}${activeTool === "rail" ? ` ${railModeText}` : ""} | ${rails.length} rails, ${draftPoints.length} draft points, ${xylophones.length} xylophones | ${ballText}`;
 }
 
 function updateCamera() {
