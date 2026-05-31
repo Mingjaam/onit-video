@@ -1,4 +1,5 @@
 import * as THREE from "three";
+import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
 
 const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
@@ -22,6 +23,7 @@ const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
+const MACBOOK_ASSET_URL = "./assets/macbook_pro_14_inch_M5.glb";
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -39,7 +41,7 @@ const TRACK_LAYOUT = {
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(BOARD_COLOR);
-scene.fog = new THREE.FogExp2(BOARD_COLOR, 0.045);
+scene.fog = new THREE.FogExp2(BOARD_COLOR, 0.018);
 
 const camera = new THREE.PerspectiveCamera(34, window.innerWidth / window.innerHeight, 0.1, 100);
 camera.position.set(0, 0.36, 8.7);
@@ -105,7 +107,12 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
-addRoom();
+addInfiniteSpace();
+
+const macbookRig = new THREE.Group();
+macbookRig.visible = false;
+scene.add(macbookRig);
+loadMacbookAsset();
 
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
@@ -169,6 +176,7 @@ function animate() {
   const logoMorph = smoothstep(5.65, 10.85, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
+  updateMacbook(runTime, logoMorph, t);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph);
 
@@ -430,7 +438,7 @@ function syncClayCircleToSphere() {
   orbShadow.style.top = `${floorPx.y.toFixed(2)}px`;
   orbShadow.style.width = `${(diameter * (0.48 + contact * 0.42)).toFixed(2)}px`;
   orbShadow.style.height = `${(diameter * (0.09 + contact * 0.04)).toFixed(2)}px`;
-  orbShadow.style.opacity = (clayCircle.style.opacity * (0.08 + contact * 0.34)).toFixed(3);
+  orbShadow.style.opacity = "0";
 
   const rippleStrength = lastImpact;
   const rippleSize = diameter * (1.05 + rippleStrength * 3.2);
@@ -438,7 +446,7 @@ function syncClayCircleToSphere() {
   orbRipple.style.top = `${floorPx.y.toFixed(2)}px`;
   orbRipple.style.width = `${rippleSize.toFixed(2)}px`;
   orbRipple.style.height = `${(rippleSize * 0.36).toFixed(2)}px`;
-  orbRipple.style.opacity = Math.min(0.55, rippleStrength * 1.9).toFixed(3);
+  orbRipple.style.opacity = "0";
 }
 
 function projectToScreen(worldPosition) {
@@ -451,13 +459,36 @@ function projectToScreen(worldPosition) {
 
 function updateCamera(t, runTime) {
   const ball = sphereGroup.position;
+  const reveal = smoothstep(6.7, 8.5, runTime);
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
-  camera.position.z = 9.4;
+  camera.position.y = lerp(camera.position.y, 0.8, reveal);
+  camera.position.z = lerp(9.4, 8.1, reveal);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
+  cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
+  cameraTarget.z = lerp(cameraTarget.z, -1.25, reveal);
   camera.lookAt(cameraTarget);
+}
+
+function updateMacbook(runTime, logoMorph, t) {
+  const reveal = smoothstep(6.55, 8.45, runTime);
+  macbookRig.visible = reveal > 0.01;
+  if (!macbookRig.visible) return;
+
+  const e = easeOutCubic(reveal);
+  macbookRig.position.set(0, lerp(-2.9, -1.34, e), -1.45);
+  macbookRig.rotation.set(lerp(0.18, -0.02, e), Math.sin(t * 0.32) * 0.04, 0);
+  macbookRig.scale.setScalar(lerp(0.72, 1, e));
+
+  macbookRig.traverse((object) => {
+    setObjectOpacity(object, Math.min(1, e));
+  });
+
+  const settle = smoothstep(8.7, 10.7, runTime);
+  sphereGroup.position.x = lerp(sphereGroup.position.x, 0, settle);
+  sphereGroup.position.y = lerp(sphereGroup.position.y, 0.2, settle * logoMorph);
 }
 
 function updateOrbShape(progress) {
@@ -652,6 +683,123 @@ function addGate(position, rotationY, label, size = 1) {
   screen.material.needsUpdate = true;
 
   trackGroup.add(group);
+}
+
+function addInfiniteSpace() {
+  const starGeometry = new THREE.BufferGeometry();
+  const count = 680;
+  const positions = new Float32Array(count * 3);
+  const colors = new Float32Array(count * 3);
+  const colorA = new THREE.Color(0x9fffb0);
+  const colorB = new THREE.Color(0xffffff);
+
+  for (let i = 0; i < count; i++) {
+    const radius = 8 + Math.random() * 18;
+    const theta = Math.random() * Math.PI * 2;
+    const phi = Math.acos((Math.random() * 2) - 1);
+    positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
+    positions[i * 3 + 1] = Math.cos(phi) * radius * 0.72;
+    positions[i * 3 + 2] = -Math.abs(Math.sin(phi) * Math.sin(theta) * radius) - 1.5;
+    const mixed = colorB.clone().lerp(colorA, Math.random() * 0.65);
+    colors[i * 3] = mixed.r;
+    colors[i * 3 + 1] = mixed.g;
+    colors[i * 3 + 2] = mixed.b;
+  }
+
+  starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  starGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const stars = new THREE.Points(
+    starGeometry,
+    new THREE.PointsMaterial({
+      size: 0.026,
+      vertexColors: true,
+      transparent: true,
+      opacity: 0.58,
+      depthWrite: false
+    })
+  );
+  roomGroup.add(stars);
+
+  const haloMaterial = new THREE.MeshBasicMaterial({
+    color: BALL_COLOR,
+    transparent: true,
+    opacity: 0.07,
+    depthWrite: false,
+    side: THREE.DoubleSide
+  });
+  for (let i = 0; i < 4; i++) {
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.6 + i * 0.75, 0.008, 8, 180), haloMaterial.clone());
+    ring.position.set(0, -0.1, -2.6 - i * 0.25);
+    ring.rotation.x = Math.PI / 2 + i * 0.08;
+    ring.rotation.z = i * 0.48;
+    roomGroup.add(ring);
+  }
+}
+
+function loadMacbookAsset() {
+  const loader = new GLTFLoader();
+  loader.load(
+    MACBOOK_ASSET_URL,
+    (gltf) => {
+      const model = gltf.scene;
+      normalizeModel(model, 3.9);
+      model.rotation.y = Math.PI;
+      model.traverse((object) => {
+        if (!object.isMesh) return;
+        object.castShadow = true;
+        object.receiveShadow = true;
+        if (object.material) {
+          const materials = Array.isArray(object.material) ? object.material : [object.material];
+          materials.forEach((material) => {
+            material.transparent = true;
+            material.opacity = 0;
+            material.needsUpdate = true;
+          });
+        }
+      });
+      macbookRig.add(model);
+    },
+    undefined,
+    () => {
+      macbookRig.add(makeFallbackMacbook());
+    }
+  );
+}
+
+function normalizeModel(model, targetWidth) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = targetWidth / Math.max(size.x, size.y, size.z, 0.001);
+  model.position.sub(center);
+  model.scale.setScalar(scale);
+}
+
+function makeFallbackMacbook() {
+  const group = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 2.1), new THREE.MeshStandardMaterial({ color: 0x171d19, roughness: 0.48, metalness: 0.12, transparent: true, opacity: 0 }));
+  base.position.y = -0.62;
+  base.castShadow = true;
+  group.add(base);
+
+  const screenShell = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.05, 0.12), new THREE.MeshStandardMaterial({ color: 0x0d130f, roughness: 0.5, metalness: 0.08, transparent: true, opacity: 0 }));
+  screenShell.position.set(0, 0.45, -0.78);
+  screenShell.castShadow = true;
+  group.add(screenShell);
+
+  const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.18, 1.72), new THREE.MeshBasicMaterial({ color: 0x08230e, transparent: true, opacity: 0 }));
+  screen.position.set(0, 0.45, -0.71);
+  group.add(screen);
+  return group;
+}
+
+function setObjectOpacity(object, opacity) {
+  if (!object.material) return;
+  const materials = Array.isArray(object.material) ? object.material : [object.material];
+  materials.forEach((material) => {
+    material.transparent = true;
+    material.opacity = opacity;
+  });
 }
 
 function addRoom() {
