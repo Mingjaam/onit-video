@@ -5,7 +5,9 @@ const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
 
-const SPHERE_RADIUS = 0.74;
+const SPHERE_RADIUS = 0.46;
+const ROLL_SCALE = 0.92;
+const RAIL_GAP = 0.78;
 const LOOP_DURATION = 11.8;
 const BALL_COLOR = 0x73ae4e;
 const BOARD_COLOR = 0xbfc2ba;
@@ -48,19 +50,6 @@ const soft = new THREE.PointLight(0xffffff, 2.6, 16);
 soft.position.set(4, 3.2, 4.8);
 scene.add(soft);
 
-const board = new THREE.Mesh(
-  new THREE.PlaneGeometry(18, 12),
-  new THREE.MeshStandardMaterial({
-    color: BOARD_COLOR,
-    roughness: 0.78,
-    metalness: 0.0
-  })
-);
-board.rotation.x = -Math.PI / 2;
-board.position.y = -2.2;
-board.receiveShadow = true;
-scene.add(board);
-
 const trackGroup = new THREE.Group();
 trackGroup.visible = true;
 scene.add(trackGroup);
@@ -86,9 +75,9 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 });
 
 const railSegments = [
-  makeLineSegment([-0.48, -1.18, -0.12], [1.32, -1.78, 0.34]),
-  makeLineSegment([1.9, -2.55, 0.52], [3.55, -3.2, 0.96]),
-  makeLineSegment([3.95, -4.05, 1.12], [2.25, -4.72, 1.68])
+  makeLineSegment([-0.52, -1.28, -0.12], [1.42, -2.08, 0.36]),
+  makeLineSegment([1.95, -3.0, 0.54], [3.62, -3.92, 0.98]),
+  makeLineSegment([4.05, -5.08, 1.16], [2.28, -6.08, 1.72])
 ];
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -117,19 +106,6 @@ const sphere = new THREE.Mesh(
 sphere.castShadow = true;
 sphere.receiveShadow = true;
 sphereGroup.add(sphere);
-
-const contactShadow = new THREE.Mesh(
-  new THREE.CircleGeometry(1.0, 64),
-  new THREE.MeshBasicMaterial({
-    color: 0x172016,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false
-  })
-);
-contactShadow.rotation.x = -Math.PI / 2;
-contactShadow.position.y = -2.185;
-scene.add(contactShadow);
 
 const letterLayout = [
   { x: -2.27, y: 0.03, r: -1.5 },
@@ -211,15 +187,10 @@ function updateBall(t, inflate, runTime, circleIn) {
       planarScale,
       Math.max(0.012, planarScale * clayToSphere)
     );
-    contactShadow.material.opacity = 0;
   } else {
     const motion = simulateMarble(runTime, lastIntroY);
     sphereGroup.position.copy(motion.position);
     sphereGroup.scale.setScalar(motion.scale);
-    contactShadow.material.opacity = motion.shadow;
-    contactShadow.position.x = motion.position.x;
-    contactShadow.position.z = motion.position.z;
-    contactShadow.scale.setScalar(motion.shadowScale);
   }
 
   const spin = runTime > 0 ? simulateMarble(runTime, lastIntroY).spin : 0;
@@ -249,9 +220,7 @@ function simulateMarble(time, startY) {
 
   return {
     position: state.position,
-    scale: 0.86,
-    shadow: state.mode === "rolling" ? 0.15 : 0.08,
-    shadowScale: state.mode === "rolling" ? 0.68 : 0.48,
+    scale: ROLL_SCALE,
     spin: state.spin
   };
 }
@@ -263,10 +232,10 @@ function stepPhysics(state, dt, gravity) {
     const acceleration = downhill - state.railV * 0.08;
     state.railV += acceleration * dt;
     state.railS += state.railV * dt;
-    state.spin += Math.abs(state.railV * dt) / (SPHERE_RADIUS * 0.86);
+    state.spin += Math.abs(state.railV * dt) / (SPHERE_RADIUS * ROLL_SCALE);
 
     if (state.railS >= rail.length) {
-      state.position.copy(rail.end);
+      state.position.copy(pointOnRail(rail, rail.length));
       state.velocity.copy(rail.direction).multiplyScalar(Math.max(state.railV, 0.6));
       state.velocity.y += -0.15;
       state.mode = "falling";
@@ -274,7 +243,7 @@ function stepPhysics(state, dt, gravity) {
       return;
     }
 
-    state.position.copy(rail.start).addScaledVector(rail.direction, state.railS);
+    state.position.copy(pointOnRail(rail, state.railS));
     return;
   }
 
@@ -298,15 +267,16 @@ function findRailHit(previous, current, ignoredIndex) {
     if (i === ignoredIndex) continue;
     const rail = railSegments[i];
     const closest = closestPointOnSegment(current, rail.start, rail.end);
-    const distance = current.distanceTo(closest.point);
-    const crossedDownward = previous.y >= closest.point.y - 0.08 && current.y <= closest.point.y + 0.12;
-    const nearCenter = distance < 0.2;
+    const ridePoint = ridePointForRail(rail, closest.t);
+    const distance = current.distanceTo(ridePoint);
+    const crossedDownward = previous.y >= ridePoint.y - 0.05 && current.y <= ridePoint.y + 0.08;
+    const nearCenter = distance < SPHERE_RADIUS * 0.56;
     const movingDown = current.y <= previous.y + 0.02;
     if (closest.t >= 0 && closest.t <= 1 && crossedDownward && nearCenter && movingDown) {
       return {
         index: i,
         s: closest.t * rail.length,
-        position: closest.point,
+        position: ridePoint,
         rail
       };
     }
@@ -321,6 +291,17 @@ function closestPointOnSegment(point, start, end) {
     t,
     point: start.clone().addScaledVector(ab, t)
   };
+}
+
+function pointOnRail(rail, s) {
+  return ridePointForRail(rail, Math.max(0, Math.min(1, s / rail.length)));
+}
+
+function ridePointForRail(rail, t) {
+  return rail.start.clone()
+    .addScaledVector(rail.delta, t)
+    .add(rail.normal.clone().multiplyScalar(RAIL_GAP * 0.04))
+    .add(new THREE.Vector3(0, SPHERE_RADIUS * ROLL_SCALE * 0.62, 0));
 }
 
 function syncClayCircleToSphere() {
@@ -356,12 +337,12 @@ function updateCamera(t, inflate, runTime) {
   const ball = sphereGroup.position;
 
   camera.position.x = lerp(0, -1.15, reveal) + ball.x * 0.08 * follow;
-  camera.position.y = lerp(0.36, 4.55, reveal) + ball.y * 0.03 * follow;
-  camera.position.z = lerp(8.7, 9.9, reveal);
+  camera.position.y = lerp(0.36, 4.35, reveal) + ball.y * 0.06 * follow;
+  camera.position.z = lerp(8.7, 10.6, reveal);
   cameraTarget.lerp(
     new THREE.Vector3(
       lerp(0, 0.1, reveal) + ball.x * 0.18 * follow,
-      lerp(-0.03, -1.65, reveal) + ball.y * 0.22 * follow,
+      lerp(-0.03, -2.6, reveal) + ball.y * 0.22 * follow,
       lerp(0, 0.45, reveal) + ball.z * 0.2 * follow
     ),
     0.12
@@ -375,18 +356,20 @@ function makeLineSegment(startArray, endArray) {
   const delta = end.clone().sub(start);
   const length = delta.length();
   const direction = delta.clone().normalize();
+  const normal = new THREE.Vector3(-direction.z, 0, direction.x).normalize();
   return {
     start,
     end,
+    delta,
     length,
     direction,
+    normal,
     curve: new THREE.LineCurve3(start, end)
   };
 }
 
 function addParallelRails(curve) {
   const samples = 72;
-  const railGap = 0.42;
   const left = [];
   const right = [];
 
@@ -394,7 +377,7 @@ function addParallelRails(curve) {
     const u = i / samples;
     const p = curve.getPointAt(u);
     const tangent = curve.getTangentAt(u);
-    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(railGap / 2);
+    const normal = new THREE.Vector3(-tangent.z, 0, tangent.x).normalize().multiplyScalar(RAIL_GAP / 2);
     left.push(p.clone().add(normal));
     right.push(p.clone().sub(normal));
   }
