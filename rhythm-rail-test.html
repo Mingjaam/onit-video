@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ON-IT Rhythm Rail Test</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #f4f6f0;
+      font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+    }
+
+    .hud {
+      position: fixed;
+      left: 40px;
+      top: 34px;
+      z-index: 2;
+      color: rgba(20, 35, 28, 0.74);
+    }
+
+    .label {
+      font-size: 13px;
+      font-weight: 900;
+      letter-spacing: 0.18em;
+    }
+
+    .title {
+      margin-top: 8px;
+      font-size: 20px;
+      font-weight: 800;
+      letter-spacing: 0;
+    }
+
+    .hint {
+      margin-top: 8px;
+      max-width: 360px;
+      font-size: 13px;
+      line-height: 1.45;
+      color: rgba(20, 35, 28, 0.5);
+    }
+
+    .progress {
+      position: fixed;
+      left: 40px;
+      right: 40px;
+      bottom: 34px;
+      z-index: 2;
+      height: 2px;
+      overflow: hidden;
+      background: rgba(20, 35, 28, 0.12);
+      border-radius: 999px;
+    }
+
+    .progress::after {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(var(--progress, 0));
+      transform-origin: left center;
+      background: #73ae4e;
+      border-radius: inherit;
+    }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="hud">
+    <div class="label">ON-IT MOTION TEST</div>
+    <div class="title">Rhythm rail transition</div>
+    <div class="hint">A brand orb follows rails and switches tracks on beat points. This can connect the logo intro to feature scenes.</div>
+  </div>
+  <div class="progress"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="./rhythm-rail-test.js"></script>
+</body>
+</html>
