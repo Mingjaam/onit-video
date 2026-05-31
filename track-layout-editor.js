@@ -9,6 +9,9 @@ const yInput = document.getElementById("yInput");
 const zInput = document.getElementById("zInput");
 const sizeInput = document.getElementById("sizeInput");
 const labelInput = document.getElementById("labelInput");
+const selectModeBtn = document.getElementById("selectModeBtn");
+const addRailPointBtn = document.getElementById("addRailPointBtn");
+const addXyloBtn = document.getElementById("addXyloBtn");
 
 const SPHERE_RADIUS = 0.38;
 const ROLL_SCALE = 0.9;
@@ -94,7 +97,11 @@ const ball = new THREE.Mesh(
     roughness: 0.4,
     metalness: 0.04,
     clearcoat: 0.62,
-    clearcoatRoughness: 0.28
+    clearcoatRoughness: 0.28,
+    sheen: 0.4,
+    sheenColor: new THREE.Color(0xcaf3b6),
+    transparent: true,
+    opacity: 1
   })
 );
 ball.castShadow = true;
@@ -114,18 +121,22 @@ let dragging = false;
 let ballState = null;
 let spin = 0;
 let lastTime = performance.now();
+let activeTool = "select";
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
 const dragPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+const placementPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const dragPoint = new THREE.Vector3();
+const placementPoint = new THREE.Vector3();
 
 document.getElementById("spawnBallBtn").addEventListener("click", spawnBall);
-document.getElementById("resetBallBtn").addEventListener("click", spawnBall);
-document.getElementById("addRailPointBtn").addEventListener("click", addRailPointFromBall);
+document.getElementById("resetBallBtn").addEventListener("click", removeBall);
+selectModeBtn.addEventListener("click", () => setTool("select"));
+addRailPointBtn.addEventListener("click", () => setTool("rail"));
 document.getElementById("finishRailBtn").addEventListener("click", finishDraftRail);
 document.getElementById("clearDraftBtn").addEventListener("click", clearDraft);
-document.getElementById("addXyloBtn").addEventListener("click", addXylophoneFromBall);
+addXyloBtn.addEventListener("click", () => setTool("xylophone"));
 document.getElementById("prevBtn").addEventListener("click", () => moveSelection(-1));
 document.getElementById("nextBtn").addEventListener("click", () => moveSelection(1));
 document.getElementById("deleteBtn").addEventListener("click", deleteSelected);
@@ -143,7 +154,6 @@ window.addEventListener("resize", resize);
 
 resize();
 refreshScene();
-spawnBall();
 animate();
 
 function animate() {
@@ -177,6 +187,12 @@ function spawnBall() {
   spin = 0;
   ballGroup.visible = true;
   ballGroup.position.copy(ballState.position);
+}
+
+function removeBall() {
+  ballState = null;
+  spin = 0;
+  ballGroup.visible = false;
 }
 
 function stepBall(dt) {
@@ -214,7 +230,7 @@ function stepBall(dt) {
     ballState.velocity.set(0, 0, 0);
   }
 
-  if (ballState.position.y < -9.2) spawnBall();
+  if (ballState.position.y < -9.2) removeBall();
 }
 
 function findRailHit(previous, current, ignoredIndex) {
@@ -272,8 +288,14 @@ function railTangentAtDistance(rail, s) {
   return rail.curve.getTangentAt(t).normalize();
 }
 
-function addRailPointFromBall() {
-  const point = ballState ? ballState.position : new THREE.Vector3(-0.45, 0.7, -0.1);
+function setTool(nextTool) {
+  activeTool = nextTool;
+  selectModeBtn.classList.toggle("active", activeTool === "select");
+  addRailPointBtn.classList.toggle("active", activeTool === "rail");
+  addXyloBtn.classList.toggle("active", activeTool === "xylophone");
+}
+
+function addRailPointAt(point) {
   draftPoints.push(roundPoint(point));
   rebuildDraft();
   exportLayout();
@@ -296,8 +318,7 @@ function clearDraft() {
   exportLayout();
 }
 
-function addXylophoneFromBall() {
-  const position = ballState ? ballState.position : new THREE.Vector3(0, -1, 0);
+function addXylophoneAt(position) {
   xylophones.push({
     position: roundPoint(position),
     rotationY: 0,
@@ -470,14 +491,28 @@ function onPointerDown(event) {
   updatePointer(event);
   raycaster.setFromCamera(pointer, camera);
   const intersects = raycaster.intersectObjects(handleObjects, true);
-  if (!intersects.length) return;
+  if (intersects.length) {
+    const target = findSelectable(intersects[0].object);
+    if (!target) return;
+    selected = target.userData.selection;
+    dragging = true;
+    renderer.domElement.classList.add("dragging");
+    refreshScene();
+    return;
+  }
 
-  const target = findSelectable(intersects[0].object);
-  if (!target) return;
-  selected = target.userData.selection;
-  dragging = true;
-  renderer.domElement.classList.add("dragging");
-  refreshScene();
+  const point = pointerToPlacementPoint();
+  if (!point) return;
+
+  if (activeTool === "rail") {
+    addRailPointAt(point);
+    return;
+  }
+
+  if (activeTool === "xylophone") {
+    addXylophoneAt(point);
+    setTool("select");
+  }
 }
 
 function onPointerMove(event) {
@@ -505,6 +540,13 @@ function updatePointer(event) {
   const rect = renderer.domElement.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+}
+
+function pointerToPlacementPoint() {
+  raycaster.setFromCamera(pointer, camera);
+  return raycaster.ray.intersectPlane(placementPlane, placementPoint)
+    ? placementPoint.clone()
+    : null;
 }
 
 function findSelectable(object) {
@@ -640,8 +682,8 @@ function exportLayout() {
 function updateStats() {
   const ballText = ballState
     ? `ball ${ballState.position.x.toFixed(2)}, ${ballState.position.y.toFixed(2)}, ${ballState.position.z.toFixed(2)}`
-    : "ball none";
-  stats.textContent = `${rails.length} rails, ${draftPoints.length} draft points, ${xylophones.length} xylophones | ${ballText}`;
+    : "ball not spawned";
+  stats.textContent = `tool ${activeTool} | ${rails.length} rails, ${draftPoints.length} draft points, ${xylophones.length} xylophones | ${ballText}`;
 }
 
 function updateCamera() {

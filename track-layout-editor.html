@@ -80,6 +80,11 @@
       background: rgba(115, 174, 78, 0.25);
     }
 
+    button.active {
+      border-color: rgba(241, 215, 94, 0.95);
+      background: rgba(241, 215, 94, 0.2);
+    }
+
     label {
       display: block;
       margin: 12px 0 5px;
@@ -132,9 +137,10 @@
       <h1>Track Layout Editor</h1>
       <div class="row">
         <button id="spawnBallBtn" class="primary">Spawn Ball</button>
-        <button id="resetBallBtn">Reset Ball</button>
+        <button id="resetBallBtn">Remove Ball</button>
       </div>
       <div class="row">
+        <button id="selectModeBtn" class="active">Select / Drag</button>
         <button id="addRailPointBtn">Rail Point</button>
         <button id="finishRailBtn">Finish Curve</button>
         <button id="clearDraftBtn">Clear Draft</button>
