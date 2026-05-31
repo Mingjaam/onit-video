@@ -147,8 +147,8 @@ function animate() {
   const runTime = Math.max(0, t - 4.85);
 
   updateBall(t, inflate, runTime, circleIn);
-  updateClayLogo(t, gather, circleIn, logoOut, inflate);
   updateCamera(t, inflate, runTime);
+  updateClayLogo(t, gather, circleIn, logoOut, inflate);
 
   renderer.render(scene, camera);
 }
@@ -188,7 +188,7 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
 function updateBall(t, inflate, runTime, circleIn) {
   const morph = smoothstep(0.24, 0.86, inflate);
   const appear = morph;
-  const planarScale = lerp(0.96, 1, morph) * (0.22 + circleIn * 0.78);
+  const planarScale = lerp(0.96, ROLL_SCALE, morph) * (0.22 + circleIn * 0.78);
 
   sphere.material.opacity = appear;
 
