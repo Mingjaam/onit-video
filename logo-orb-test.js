@@ -1,5 +1,4 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
@@ -458,12 +457,12 @@ function projectToScreen(worldPosition) {
 
 function updateCamera(t, runTime) {
   const ball = sphereGroup.position;
-  const reveal = smoothstep(6.7, 8.5, runTime);
+  const reveal = smoothstep(5.95, 7.55, runTime);
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
   camera.position.y = lerp(camera.position.y, 0.8, reveal);
-  camera.position.z = lerp(9.4, 8.1, reveal);
+  camera.position.z = lerp(9.4, 7.3, reveal);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
@@ -472,14 +471,14 @@ function updateCamera(t, runTime) {
 }
 
 function updateMacbook(runTime, logoMorph, t) {
-  const reveal = smoothstep(6.55, 8.45, runTime);
+  const reveal = smoothstep(5.85, 7.45, runTime);
   macbookRig.visible = reveal > 0.01;
   if (!macbookRig.visible) return;
 
   const e = easeOutCubic(reveal);
-  macbookRig.position.set(0, lerp(-2.9, -1.34, e), -1.45);
+  macbookRig.position.set(0, lerp(-2.55, -1.02, e), -1.35);
   macbookRig.rotation.set(lerp(0.18, -0.02, e), Math.sin(t * 0.32) * 0.04, 0);
-  macbookRig.scale.setScalar(lerp(0.72, 1, e));
+  macbookRig.scale.setScalar(lerp(0.84, 1.18, e));
 
   macbookRig.traverse((object) => {
     setObjectOpacity(object, Math.min(1, e));
@@ -682,33 +681,38 @@ function addGate(position, rotationY, label, size = 1) {
 }
 
 function loadMacbookAsset() {
-  const loader = new GLTFLoader();
-  loader.load(
-    MACBOOK_ASSET_URL,
-    (gltf) => {
-      const model = gltf.scene;
-      normalizeModel(model, 3.9);
-      model.rotation.y = Math.PI;
-      model.traverse((object) => {
-        if (!object.isMesh) return;
-        object.castShadow = true;
-        object.receiveShadow = true;
-        if (object.material) {
-          const materials = Array.isArray(object.material) ? object.material : [object.material];
-          materials.forEach((material) => {
-            material.transparent = true;
-            material.opacity = 0;
-            material.needsUpdate = true;
+  import("three/addons/loaders/GLTFLoader.js")
+    .then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        MACBOOK_ASSET_URL,
+        (gltf) => {
+          const model = gltf.scene;
+          normalizeModel(model, 3.9);
+          model.rotation.y = Math.PI;
+          model.traverse((object) => {
+            if (!object.isMesh) return;
+            object.castShadow = true;
+            object.receiveShadow = true;
+            if (!object.material) return;
+            const materials = Array.isArray(object.material) ? object.material : [object.material];
+            materials.forEach((material) => {
+              material.transparent = true;
+              material.opacity = 0;
+              material.needsUpdate = true;
+            });
           });
+          macbookRig.add(model);
+        },
+        undefined,
+        () => {
+          macbookRig.add(makeFallbackMacbook());
         }
-      });
-      macbookRig.add(model);
-    },
-    undefined,
-    () => {
+      );
+    })
+    .catch(() => {
       macbookRig.add(makeFallbackMacbook());
-    }
-  );
+    });
 }
 
 function normalizeModel(model, targetWidth) {
