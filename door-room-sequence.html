@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ON-IT Door Room Sequence</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #030504;
+      font-family: Inter, "Helvetica Neue", Arial, sans-serif;
+    }
+
+    #stage {
+      position: fixed;
+      inset: 0;
+      z-index: 1;
+    }
+
+    .hud {
+      position: fixed;
+      left: 32px;
+      top: 28px;
+      z-index: 3;
+      color: rgba(221, 255, 229, 0.76);
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 0.18em;
+      pointer-events: none;
+    }
+
+    .progress {
+      position: fixed;
+      left: 32px;
+      right: 32px;
+      bottom: 28px;
+      z-index: 3;
+      height: 2px;
+      overflow: hidden;
+      background: rgba(8, 201, 35, 0.14);
+      border-radius: 999px;
+    }
+
+    .progress::after {
+      content: "";
+      display: block;
+      width: 100%;
+      height: 100%;
+      transform: scaleX(var(--progress, 0));
+      transform-origin: left center;
+      background: #08c923;
+      border-radius: inherit;
+    }
+
+    .sound-button {
+      position: fixed;
+      right: 32px;
+      top: 26px;
+      z-index: 4;
+      height: 38px;
+      padding: 0 14px;
+      border: 1px solid rgba(8, 201, 35, 0.4);
+      border-radius: 8px;
+      background: rgba(5, 12, 8, 0.72);
+      color: #d9ffe0;
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      backdrop-filter: blur(14px);
+      cursor: pointer;
+    }
+
+    .sound-button:hover {
+      background: rgba(8, 201, 35, 0.16);
+    }
+  </style>
+</head>
+<body>
+  <div id="stage"></div>
+  <div class="hud">ON-IT / DOOR TEST</div>
+  <button class="sound-button" type="button">START SOUND</button>
+  <div class="progress"></div>
+
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="./door-room-sequence.js?v=first-door-room"></script>
+</body>
+</html>
