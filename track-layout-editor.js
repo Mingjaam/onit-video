@@ -4,6 +4,7 @@ const stage = document.getElementById("stage");
 const output = document.getElementById("output");
 const stats = document.getElementById("stats");
 const selectedInput = document.getElementById("selectedInput");
+const spawnBallBtn = document.getElementById("spawnBallBtn");
 const xInput = document.getElementById("xInput");
 const yInput = document.getElementById("yInput");
 const zInput = document.getElementById("zInput");
@@ -130,7 +131,7 @@ const placementPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 const dragPoint = new THREE.Vector3();
 const placementPoint = new THREE.Vector3();
 
-document.getElementById("spawnBallBtn").addEventListener("click", spawnBall);
+spawnBallBtn.addEventListener("click", spawnBall);
 document.getElementById("resetBallBtn").addEventListener("click", removeBall);
 selectModeBtn.addEventListener("click", () => setTool("select"));
 addRailPointBtn.addEventListener("click", () => setTool("rail"));
@@ -176,6 +177,8 @@ function animate() {
 }
 
 function spawnBall() {
+  if (ballState) return;
+
   ballState = {
     mode: "falling",
     position: new THREE.Vector3(-0.45, 0.7, -0.1),
@@ -187,12 +190,16 @@ function spawnBall() {
   spin = 0;
   ballGroup.visible = true;
   ballGroup.position.copy(ballState.position);
+  spawnBallBtn.disabled = true;
+  spawnBallBtn.textContent = "Ball Active";
 }
 
 function removeBall() {
   ballState = null;
   spin = 0;
   ballGroup.visible = false;
+  spawnBallBtn.disabled = false;
+  spawnBallBtn.textContent = "Spawn Ball";
 }
 
 function stepBall(dt) {
