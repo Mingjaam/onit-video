@@ -13,7 +13,7 @@ const ROLL_SCALE = 0.9;
 const RAIL_GAP = 0.58;
 const RAIL_TUBE_RADIUS = 0.026;
 const RAIL_CONTACT_RADIUS = SPHERE_RADIUS * ROLL_SCALE * 0.72;
-const FLOOR_Y = -3.36;
+const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
@@ -248,17 +248,17 @@ function simulateMarble(time, startY, logoMorph) {
     spin: 0,
     squash: 0,
     impact: 0,
-    bounces: 0
+    restTime: 0
   };
 
-  let remaining = Math.min(time, 4.65);
+  let remaining = Math.min(time, 4.95);
   while (remaining > 0) {
     const step = Math.min(dt, remaining);
     stepPhysics(state, step, gravity);
     remaining -= step;
   }
 
-  const lift = smoothstep(4.65, 6.15, time);
+  const lift = smoothstep(4.95, 6.25, time);
   if (lift > 0) {
     const liftedY = lerp(state.position.y, MORPH_START_Y, easeInOutCubic(lift));
     state.position.set(0, liftedY, 0);
@@ -310,18 +310,19 @@ function stepPhysics(state, dt, gravity) {
   if (state.position.y <= FLOOR_CONTACT_Y && state.velocity.y < 0) {
     state.position.y = FLOOR_CONTACT_Y;
     const bouncePower = Math.abs(state.velocity.y);
-    if (bouncePower > 0.7 && state.bounces < 2) {
-      const restitution = state.bounces === 0 ? 0.58 : 0.43;
+    if (bouncePower > 0.28) {
+      const restitution = 0.56;
       state.velocity.y = bouncePower * restitution;
       state.velocity.x = 0;
       state.velocity.z = 0;
       state.squash = Math.min(0.72, 0.18 + bouncePower * 0.035);
       state.impact = Math.min(0.72, 0.24 + bouncePower * 0.052);
-      state.bounces += 1;
+      state.restTime = 0;
     } else {
       state.velocity.set(0, 0, 0);
       state.squash = Math.max(state.squash, 0.08);
       state.impact = Math.max(state.impact, 0.12);
+      state.restTime += dt;
     }
   }
 
