@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/loaders/GLTFLoader.js";
+import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
 const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
@@ -107,7 +107,6 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
-addInfiniteSpace();
 
 const macbookRig = new THREE.Group();
 macbookRig.visible = false;
@@ -486,9 +485,6 @@ function updateMacbook(runTime, logoMorph, t) {
     setObjectOpacity(object, Math.min(1, e));
   });
 
-  const settle = smoothstep(8.7, 10.7, runTime);
-  sphereGroup.position.x = lerp(sphereGroup.position.x, 0, settle);
-  sphereGroup.position.y = lerp(sphereGroup.position.y, 0.2, settle * logoMorph);
 }
 
 function updateOrbShape(progress) {
@@ -683,57 +679,6 @@ function addGate(position, rotationY, label, size = 1) {
   screen.material.needsUpdate = true;
 
   trackGroup.add(group);
-}
-
-function addInfiniteSpace() {
-  const starGeometry = new THREE.BufferGeometry();
-  const count = 680;
-  const positions = new Float32Array(count * 3);
-  const colors = new Float32Array(count * 3);
-  const colorA = new THREE.Color(0x9fffb0);
-  const colorB = new THREE.Color(0xffffff);
-
-  for (let i = 0; i < count; i++) {
-    const radius = 8 + Math.random() * 18;
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos((Math.random() * 2) - 1);
-    positions[i * 3] = Math.sin(phi) * Math.cos(theta) * radius;
-    positions[i * 3 + 1] = Math.cos(phi) * radius * 0.72;
-    positions[i * 3 + 2] = -Math.abs(Math.sin(phi) * Math.sin(theta) * radius) - 1.5;
-    const mixed = colorB.clone().lerp(colorA, Math.random() * 0.65);
-    colors[i * 3] = mixed.r;
-    colors[i * 3 + 1] = mixed.g;
-    colors[i * 3 + 2] = mixed.b;
-  }
-
-  starGeometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  starGeometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-  const stars = new THREE.Points(
-    starGeometry,
-    new THREE.PointsMaterial({
-      size: 0.026,
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.58,
-      depthWrite: false
-    })
-  );
-  roomGroup.add(stars);
-
-  const haloMaterial = new THREE.MeshBasicMaterial({
-    color: BALL_COLOR,
-    transparent: true,
-    opacity: 0.07,
-    depthWrite: false,
-    side: THREE.DoubleSide
-  });
-  for (let i = 0; i < 4; i++) {
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(1.6 + i * 0.75, 0.008, 8, 180), haloMaterial.clone());
-    ring.position.set(0, -0.1, -2.6 - i * 0.25);
-    ring.rotation.x = Math.PI / 2 + i * 0.08;
-    ring.rotation.z = i * 0.48;
-    roomGroup.add(ring);
-  }
 }
 
 function loadMacbookAsset() {
