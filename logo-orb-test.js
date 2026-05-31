@@ -178,8 +178,7 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
     ].join(" ");
   });
 
-  const circleFade = smoothstep(0.24, 0.86, inflate);
-  const circleOpacity = circleIn * (1 - circleFade);
+  const circleOpacity = circleIn;
   syncClayCircleToSphere();
   clayCircle.style.opacity = circleOpacity.toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
@@ -187,10 +186,9 @@ function updateClayLogo(t, gather, circleIn, logoOut, inflate) {
 
 function updateBall(t, inflate, runTime, circleIn) {
   const morph = smoothstep(0.24, 0.86, inflate);
-  const appear = morph;
   const planarScale = lerp(0.96, ROLL_SCALE, morph) * (0.22 + circleIn * 0.78);
 
-  sphere.material.opacity = appear;
+  sphere.material.opacity = 0;
 
   if (runTime <= 0) {
     lastIntroY = lerp(0.44, 0.58, smoothstep(0.35, 1, inflate));
