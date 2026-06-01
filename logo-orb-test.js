@@ -39,8 +39,8 @@ const WS_SCENE_DURATION = 26.25;
 const VOICE_SCENE_DURATION = 7.1;
 const PRD_SCENE_DURATION = PRD_INTRO_DURATION + PRD_TAIL_DURATION;
 const BACKGROUND_MUSIC_VOLUME = 0.46;
-const VOICE_DUCKED_MUSIC_VOLUME = BACKGROUND_MUSIC_VOLUME * 0.5;
-const VOICE_VIDEO_VOLUME = 1.0;
+const VOICE_DUCKED_MUSIC_VOLUME = BACKGROUND_MUSIC_VOLUME * 0.25;
+const VOICE_VIDEO_VOLUME = 1.5;
 const WS_PHONE_LEAD_TIME = 0.1;
 const WS_MAC_DELAY_TIME = 0.2;
 const PHONE_FADE_START = 11.85;
@@ -141,6 +141,7 @@ const screenVideos = {
 };
 const backgroundMusic = makeBackgroundMusic();
 const voiceAudio = makeVoiceAudio();
+const voiceAudioGain = makeVoiceAudioGain();
 let currentPhoneScreenMapKey = "";
 let currentDeviceScreenStage = "";
 let currentPrdSegment = "";
@@ -861,7 +862,7 @@ function getDeviceScreenStage(runTime) {
 function updateAudioMix(runTime) {
   const stage = getDeviceScreenStage(runTime);
   backgroundMusic.volume = stage === "voice" ? VOICE_DUCKED_MUSIC_VOLUME : BACKGROUND_MUSIC_VOLUME;
-  voiceAudio.volume = VOICE_VIDEO_VOLUME;
+  setVoiceAudioVolume(VOICE_VIDEO_VOLUME);
 }
 
 function resetVideosForStage(stage) {
@@ -1488,8 +1489,35 @@ function makeVoiceAudio() {
   const audio = new Audio(VOICE_VIDEO_URL);
   audio.loop = false;
   audio.preload = "auto";
-  audio.volume = VOICE_VIDEO_VOLUME;
+  audio.volume = 1;
   return audio;
+}
+
+function makeVoiceAudioGain() {
+  try {
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) return null;
+
+    const context = new AudioContextClass();
+    const source = context.createMediaElementSource(voiceAudio);
+    const gain = context.createGain();
+    gain.gain.value = VOICE_VIDEO_VOLUME;
+    source.connect(gain);
+    gain.connect(context.destination);
+    return { context, gain };
+  } catch {
+    return null;
+  }
+}
+
+function setVoiceAudioVolume(volume) {
+  if (voiceAudioGain) {
+    voiceAudio.volume = 1;
+    voiceAudioGain.gain.gain.value = volume;
+    return;
+  }
+
+  voiceAudio.volume = Math.min(1, volume);
 }
 
 function ensureBackgroundMusicStarted(force = false) {
@@ -1504,6 +1532,7 @@ function ensureBackgroundMusicStarted(force = false) {
 
 function unlockAudioPlayback() {
   backgroundMusicNeedsGesture = false;
+  resumeVoiceAudioContext();
   ensureBackgroundMusicStarted(true);
   if (getDeviceScreenStage(currentRunTime) === "voice") {
     voiceAudioNeedsGesture = false;
@@ -1514,6 +1543,7 @@ function unlockAudioPlayback() {
 function playVoiceAudio(runTime, force = false) {
   if (voiceAudioPlayAttempted && !voiceAudio.paused) return;
   if (voiceAudioNeedsGesture && !force) return;
+  resumeVoiceAudioContext();
 
   const voiceElapsed = Math.max(0, runTime - VOICE_VIDEO_START);
   try {
@@ -1527,6 +1557,12 @@ function playVoiceAudio(runTime, force = false) {
     voiceAudioPlayAttempted = false;
     voiceAudioNeedsGesture = true;
   });
+}
+
+function resumeVoiceAudioContext() {
+  if (voiceAudioGain?.context?.state === "suspended") {
+    voiceAudioGain.context.resume().catch(() => {});
+  }
 }
 
 function stopVoiceAudio() {
