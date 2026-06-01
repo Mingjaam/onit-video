@@ -622,16 +622,16 @@ function updateLaptop(runTime) {
 
   const eased = easeOutCubic(slide);
   laptopRig.position.set(
-    lerp(4.5, 1.95, eased),
-    lerp(-0.78, -0.62, eased),
-    lerp(-0.62, -0.42, eased)
+    lerp(4.6, 2.12, eased),
+    lerp(-0.82, -0.66, eased),
+    lerp(-0.64, -0.44, eased)
   );
   laptopRig.rotation.set(
     lerp(0.08, -0.02, eased),
     lerp(-0.34, -0.1, eased),
     lerp(0.04, 0, eased)
   );
-  laptopRig.scale.setScalar(lerp(0.66, 0.78, eased));
+  laptopRig.scale.setScalar(lerp(0.78, 0.96, eased));
 
   laptopRig.traverse((object) => {
     setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
