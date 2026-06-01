@@ -32,7 +32,7 @@ const PHONE_TYPE_START = PHONE_FADE_END + 0.25;
 const PHONE_TYPE_INTERVAL = 0.16;
 const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
 const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
-const PHONE_SPIN_DURATION = 1.25;
+const PHONE_SPIN_DURATION = 2.05;
 const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + 0.18;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
@@ -574,14 +574,15 @@ function updatePhone(runTime, phoneFade, t) {
   const baseZ = lerp(-0.02, 0, settle);
 
   phoneRig.position.set(0, 0, -0.2);
-  phoneRig.position.x += spinLift * 0.14;
-  phoneRig.position.y += spinLift * 0.16;
+  phoneRig.position.x += spinLift * 0.22;
+  phoneRig.position.y += spinLift * 0.24;
+  phoneRig.position.z += spinLift * 0.58;
   phoneRig.rotation.set(
-    baseX - spinLift * 0.36,
+    baseX - spinLift * 0.3,
     baseY + spinProgress * Math.PI * 2,
-    baseZ - spinLift * 0.2
+    baseZ - spinLift * 0.16
   );
-  phoneRig.scale.setScalar(lerp(0.86, 1.08, settle));
+  phoneRig.scale.setScalar(lerp(0.86, 1.08, settle) + spinLift * 0.22);
 
   const opacity = smoothstep(0.08, 0.9, phoneFade);
   phoneRig.traverse((object) => {
@@ -1028,31 +1029,21 @@ function drawOnitAppIcon(ctx, cx, cy, size) {
   const r = size * 0.22;
   const x = cx - size / 2;
   const y = cy - size / 2;
-  roundRect(ctx, x, y, size, size, r, "#08c923");
+  roundRect(ctx, x, y, size, size, r, "#ffffff");
 
   ctx.save();
-  ctx.translate(x, y);
-  ctx.scale(size / 100, size / 100);
-  ctx.fillStyle = "#ffffff";
-  ctx.beginPath();
-  roundedRectPath(ctx, 22, 18, 59, 64, 7);
-  ctx.fill();
+  ctx.translate(x + size * 0.13, y + size * 0.13);
+  ctx.scale((size * 0.74) / 100, (size * 0.74) / 100);
   ctx.fillStyle = "#08c923";
   ctx.beginPath();
-  roundedRectPath(ctx, 33, 30, 36, 38, 4);
-  ctx.fill();
-  ctx.fillStyle = "#08c923";
-  ctx.beginPath();
-  ctx.moveTo(61, 68);
-  ctx.lineTo(81, 68);
-  ctx.lineTo(61, 88);
-  ctx.closePath();
-  ctx.fill();
+  canvasPointsPath(ctx, logoShape.outer);
+  canvasPointsPath(ctx, logoShape.inner);
+  ctx.fill("evenodd");
   ctx.restore();
 
   ctx.save();
-  ctx.globalAlpha = 0.28;
-  ctx.strokeStyle = "#ffffff";
+  ctx.globalAlpha = 0.34;
+  ctx.strokeStyle = "#08c923";
   ctx.lineWidth = Math.max(2, size * 0.018);
   roundRectStroke(ctx, x + size * 0.03, y + size * 0.03, size * 0.94, size * 0.94, r * 0.86);
   ctx.restore();
@@ -1420,6 +1411,15 @@ function roundedRectPath(ctx, x, y, width, height, radius) {
   ctx.arcTo(x + width, y + height, x, y + height, r);
   ctx.arcTo(x, y + height, x, y, r);
   ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+}
+
+function canvasPointsPath(ctx, points) {
+  if (!points.length) return;
+  ctx.moveTo(points[0].x, points[0].y);
+  points.slice(1).forEach((point) => {
+    ctx.lineTo(point.x, point.y);
+  });
   ctx.closePath();
 }
 
