@@ -23,7 +23,7 @@ const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
-const IPHONE_ASSET_URL = "./assets/iphone_15_pro_max_black.glb";
+const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -727,10 +727,10 @@ function loadPhoneAsset() {
         (gltf) => {
           const model = gltf.scene;
           normalizeModel(model, 2.68);
-          model.rotation.y = Math.PI;
+          model.rotation.y = 0;
           prepareTransparentModel(model);
+          replacePhoneScreenMaterial(model);
           phoneRig.add(model);
-          addPhoneScreenOverlay(model);
         },
         undefined,
         () => {
@@ -769,7 +769,7 @@ function prepareTransparentModel(model) {
   });
 }
 
-function addPhoneScreenOverlay(model) {
+function replacePhoneScreenMaterial(model) {
   model.updateWorldMatrix(true, true);
 
   let best = null;
@@ -792,35 +792,32 @@ function addPhoneScreenOverlay(model) {
 
     if (long < 1.35 || short < 0.54) return;
     if (aspect < 1.85 || aspect > 2.35) return;
-    if (thin > 0.04) return;
+    if (thin > 0.012) return;
+    if (center.z < 0) return;
 
     const material = Array.isArray(object.material) ? object.material[0] : object.material;
     const color = material?.color || new THREE.Color(0xffffff);
     const darkSurface = 1 - ((color.r + color.g + color.b) / 3);
-    const screenNameBias = /Object_81|screen|display/i.test(object.name || "") ? 1.2 : 0;
-    const score = (long * short) + (center.z * 2.2) + (darkSurface * 0.35) + screenNameBias - (thin * 8);
+    const screenNameBias = /screen|display|Object_18/i.test(object.name || "") ? 1.2 : 0;
+    const score = (long * short) + (center.z * 3.2) + (darkSurface * 0.45) + screenNameBias - (thin * 20);
 
     if (!best || score > best.score) {
-      best = { object, score, center: center.clone(), size: size.clone() };
+      best = { object, score };
     }
   });
 
   if (!best) return false;
 
-  const screenTexture = makeProjectListScreenTexture(true);
-  const visibleWidth = Math.min(best.size.x, best.size.y) * 0.89;
-  const visibleHeight = Math.max(best.size.x, best.size.y) * 0.935;
-  const overlay = new THREE.Mesh(new THREE.PlaneGeometry(visibleWidth, visibleHeight), new THREE.MeshBasicMaterial({
+  const screenTexture = makeProjectListScreenTexture(false);
+  best.object.material = new THREE.MeshBasicMaterial({
     map: screenTexture,
     transparent: true,
     opacity: 0,
     depthTest: true,
     depthWrite: false,
     toneMapped: false
-  }));
-  overlay.position.set(best.center.x, best.center.y, best.center.z + 0.006);
-  overlay.renderOrder = 40;
-  phoneRig.add(overlay);
+  });
+  best.object.renderOrder = 30;
   return true;
 }
 
