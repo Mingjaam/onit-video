@@ -120,7 +120,7 @@ const ipadScreenMaterials = [];
 const screenVideos = {
   wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL),
   wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
-    rotation: Math.PI / 2
+    rotation: Math.PI * 1.5
   }),
   wsMac: makeScreenVideo(WS_MAC_VIDEO_URL),
   voice: makeScreenVideo(VOICE_VIDEO_URL),
@@ -793,10 +793,16 @@ function updateDeviceScreenVideos(runTime) {
     resetVideosForStage(stage);
   }
 
+  if (stage === "websocket-hold") {
+    setWebsocketScreenMaps("ws-first-frame");
+    holdScreenVideoFirstFrame(screenVideos.wsPhone);
+    holdScreenVideoFirstFrame(screenVideos.wsIpad);
+    holdScreenVideoFirstFrame(screenVideos.wsMac);
+    return;
+  }
+
   if (stage === "websocket") {
-    setPhoneScreenMap(screenVideos.wsPhone.texture, "ws-phone-video");
-    setScreenMaterialsMap(ipadScreenMaterials, screenVideos.wsIpad.texture);
-    setScreenMaterialsMap(laptopScreenMaterials, screenVideos.wsMac.texture);
+    setWebsocketScreenMaps("ws-phone-video");
     playScreenVideo(screenVideos.wsPhone);
     playScreenVideo(screenVideos.wsIpad);
     playScreenVideo(screenVideos.wsMac);
@@ -820,13 +826,18 @@ function getDeviceScreenStage(runTime) {
   if (runTime >= PRD_SCENE_START) return "prd";
   if (runTime >= VOICE_VIDEO_START) return "voice";
   if (runTime >= LINEUP_READY_TIME) return "websocket";
+  if (runTime >= LAPTOP_SLIDE_START) return "websocket-hold";
   return "intro";
 }
 
 function resetVideosForStage(stage) {
-  if (stage === "intro") return;
+  if (stage === "intro") {
+    pauseAndResetAllScreenVideos();
+    return;
+  }
 
   const videosByStage = {
+    "websocket-hold": [screenVideos.wsPhone, screenVideos.wsIpad, screenVideos.wsMac],
     websocket: [screenVideos.wsPhone, screenVideos.wsIpad, screenVideos.wsMac],
     voice: [screenVideos.voice],
     prd: [screenVideos.prd]
@@ -834,8 +845,18 @@ function resetVideosForStage(stage) {
 
   (videosByStage[stage] || []).forEach((screenVideo) => {
     resetScreenVideo(screenVideo);
-    playScreenVideo(screenVideo);
+    if (stage === "websocket-hold") {
+      holdScreenVideoFirstFrame(screenVideo);
+    } else {
+      playScreenVideo(screenVideo);
+    }
   });
+}
+
+function setWebsocketScreenMaps(key) {
+  setPhoneScreenMap(screenVideos.wsPhone.texture, key);
+  setScreenMaterialsMap(ipadScreenMaterials, screenVideos.wsIpad.texture);
+  setScreenMaterialsMap(laptopScreenMaterials, screenVideos.wsMac.texture);
 }
 
 function setScreenMaterialsMap(materials, texture) {
@@ -1352,7 +1373,7 @@ function makeScreenVideo(url, options = {}) {
   video.loop = options.loop === true;
   video.playsInline = true;
   video.preload = "auto";
-  video.autoplay = true;
+  video.autoplay = false;
 
   if (Number.isFinite(options.skipStart) && Number.isFinite(options.skipEnd)) {
     video.addEventListener("timeupdate", () => {
@@ -1365,6 +1386,9 @@ function makeScreenVideo(url, options = {}) {
   const texture = new THREE.VideoTexture(video);
   configureScreenVideoTexture(texture);
   if (Number.isFinite(options.rotation)) rotateScreenTexture(texture, options.rotation);
+  video.addEventListener("loadeddata", () => {
+    holdScreenVideoFirstFrame({ video, texture });
+  }, { once: true });
   video.load();
 
   return { video, texture };
@@ -1394,6 +1418,21 @@ function resetScreenVideo(screenVideo) {
   } catch {
     // Some browsers reject seeks before metadata is ready; playback still starts normally.
   }
+}
+
+function holdScreenVideoFirstFrame(screenVideo) {
+  screenVideo.video.pause();
+  if (screenVideo.video.readyState >= 1 && Math.abs(screenVideo.video.currentTime) > 0.04) {
+    resetScreenVideo(screenVideo);
+  }
+  screenVideo.texture.needsUpdate = true;
+}
+
+function pauseAndResetAllScreenVideos() {
+  Object.values(screenVideos).forEach((screenVideo) => {
+    screenVideo.video.pause();
+    resetScreenVideo(screenVideo);
+  });
 }
 
 function playScreenVideo(screenVideo) {
