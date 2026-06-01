@@ -113,18 +113,6 @@ phoneRig.visible = false;
 scene.add(phoneRig);
 loadPhoneAsset();
 
-const phoneScreenMaterial = new THREE.MeshBasicMaterial({
-  map: makeProjectListScreenTexture(),
-  transparent: true,
-  opacity: 0,
-  depthTest: false,
-  depthWrite: false
-});
-const phoneScreenPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.04, 2.24), phoneScreenMaterial);
-phoneScreenPlane.position.set(0, 0, 0.074);
-phoneScreenPlane.renderOrder = 20;
-phoneRig.add(phoneScreenPlane);
-
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -742,6 +730,7 @@ function loadPhoneAsset() {
           model.rotation.y = Math.PI;
           prepareTransparentModel(model);
           phoneRig.add(model);
+          addPhoneScreenOverlay(model);
         },
         undefined,
         () => {
@@ -780,6 +769,61 @@ function prepareTransparentModel(model) {
   });
 }
 
+function addPhoneScreenOverlay(model) {
+  model.updateWorldMatrix(true, true);
+
+  let best = null;
+  const center = new THREE.Vector3();
+  const size = new THREE.Vector3();
+
+  model.traverse((object) => {
+    if (!object.isMesh || !object.geometry) return;
+
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return;
+
+    box.getSize(size);
+    box.getCenter(center);
+    const dims = [size.x, size.y, size.z].sort((a, b) => b - a);
+    const long = dims[0];
+    const short = dims[1];
+    const thin = dims[2];
+    const aspect = long / Math.max(short, 0.001);
+
+    if (long < 1.35 || short < 0.54) return;
+    if (aspect < 1.85 || aspect > 2.35) return;
+    if (thin > 0.04) return;
+
+    const material = Array.isArray(object.material) ? object.material[0] : object.material;
+    const color = material?.color || new THREE.Color(0xffffff);
+    const darkSurface = 1 - ((color.r + color.g + color.b) / 3);
+    const screenNameBias = /Object_81|screen|display/i.test(object.name || "") ? 1.2 : 0;
+    const score = (long * short) + (center.z * 2.2) + (darkSurface * 0.35) + screenNameBias - (thin * 8);
+
+    if (!best || score > best.score) {
+      best = { object, score, center: center.clone(), size: size.clone() };
+    }
+  });
+
+  if (!best) return false;
+
+  const screenTexture = makeProjectListScreenTexture(true);
+  const visibleWidth = Math.min(best.size.x, best.size.y) * 0.89;
+  const visibleHeight = Math.max(best.size.x, best.size.y) * 0.935;
+  const overlay = new THREE.Mesh(new THREE.PlaneGeometry(visibleWidth, visibleHeight), new THREE.MeshBasicMaterial({
+    map: screenTexture,
+    transparent: true,
+    opacity: 0,
+    depthTest: true,
+    depthWrite: false,
+    toneMapped: false
+  }));
+  overlay.position.set(best.center.x, best.center.y, best.center.z + 0.006);
+  overlay.renderOrder = 40;
+  phoneRig.add(overlay);
+  return true;
+}
+
 function addFallbackPhone() {
   const fallback = makeFallbackPhone();
   phoneRig.add(fallback);
@@ -804,7 +848,13 @@ function makeFallbackPhone() {
 
   const screen = new THREE.Mesh(
     new THREE.PlaneGeometry(0.82, 1.72),
-    new THREE.MeshBasicMaterial({ color: 0x07110c, transparent: true, opacity: 0 })
+    new THREE.MeshBasicMaterial({
+      map: makeProjectListScreenTexture(true),
+      transparent: true,
+      opacity: 0,
+      depthWrite: false,
+      toneMapped: false
+    })
   );
   screen.position.z = 0.045;
   group.add(screen);
@@ -941,7 +991,7 @@ function makeMarkTexture(label) {
   return texture;
 }
 
-function makeProjectListScreenTexture() {
+function makeProjectListScreenTexture(flipY = false) {
   const canvas = document.createElement("canvas");
   canvas.width = 946;
   canvas.height = 2048;
@@ -1035,6 +1085,8 @@ function makeProjectListScreenTexture() {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
+  texture.flipY = flipY;
+  texture.needsUpdate = true;
   return texture;
 }
 
