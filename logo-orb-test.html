@@ -129,18 +129,19 @@
     .stage-caption {
       position: fixed;
       left: 50%;
-      bottom: 92px;
+      bottom: 150px;
       z-index: 3;
       width: min(860px, calc(100vw - 80px));
-      color: rgba(240, 255, 244, 0.94);
-      font-size: clamp(22px, 3vw, 42px);
-      font-weight: 760;
+      color: rgba(8, 201, 35, 0.96);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(20px, 2.7vw, 38px);
+      font-weight: 700;
       letter-spacing: 0;
       line-height: 1.1;
       text-align: center;
       text-shadow:
         0 14px 36px rgba(0, 0, 0, 0.55),
-        0 0 22px rgba(8, 201, 35, 0.24);
+        0 0 22px rgba(8, 201, 35, 0.28);
       opacity: 0;
       transform: translate(-50%, 10px);
       transition: opacity 120ms linear;
@@ -205,6 +206,6 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=prd-single-macbook-scene"></script>
+  <script type="module" src="./logo-orb-test.js?v=caption-monospace-up"></script>
 </body>
 </html>
