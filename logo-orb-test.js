@@ -4,6 +4,7 @@ const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
+const phoneMask = document.querySelector(".phone-mask");
 const orbPath = document.getElementById("orbPath");
 const orbShadow = document.querySelector(".orb-shadow");
 const orbRipple = document.querySelector(".orb-ripple");
@@ -213,10 +214,11 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, ip
   });
 
   const circleOpacity = circleIn;
-  updateOrbShape(logoMorph, iphoneMorph);
-  syncClayCircleToSphere(iphoneMorph, iphoneReveal);
-  clayCircle.style.opacity = (circleOpacity * (1 - smoothstep(0.94, 1, iphoneReveal))).toFixed(3);
+  updateOrbShape(logoMorph, 0);
+  syncClayCircleToSphere();
+  clayCircle.style.opacity = (circleOpacity * (1 - smoothstep(0.02, 0.22, iphoneMorph))).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
+  syncPhoneMask(iphoneMorph, iphoneReveal);
 }
 
 function updateBall(t, dropReady, runTime, circleIn, logoMorph) {
@@ -415,9 +417,8 @@ function railTangentAtDistance(rail, s) {
   return rail.curve.getTangentAt(Math.max(0, Math.min(1, s / rail.length))).normalize();
 }
 
-function syncClayCircleToSphere(iphoneMorph = 0, iphoneReveal = 0) {
+function syncClayCircleToSphere() {
   sphereGroup.updateWorldMatrix(true, false);
-  phoneRig.updateWorldMatrix(true, true);
 
   const center = new THREE.Vector3(0, 0, 0);
   const edge = new THREE.Vector3(SPHERE_RADIUS, 0, 0);
@@ -430,28 +431,15 @@ function syncClayCircleToSphere(iphoneMorph = 0, iphoneReveal = 0) {
   const floorPx = projectToScreen(floor);
   const radiusPx = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
   const diameter = Math.max(1, radiusPx * 2);
-  const phoneEase = easeInOutCubic(iphoneMorph);
-  const fallbackPhoneWidth = diameter * 1.12;
-  const fallbackPhoneHeight = fallbackPhoneWidth * IPHONE_ASPECT_RATIO;
-  const phoneRect = getProjectedPhoneRect() || {
-    x: centerPx.x,
-    y: centerPx.y,
-    width: fallbackPhoneWidth,
-    height: fallbackPhoneHeight
-  };
-  const visualX = lerp(centerPx.x, phoneRect.x, phoneEase);
-  const visualY = lerp(centerPx.y, phoneRect.y, phoneEase);
-  const visualWidth = lerp(diameter, phoneRect.width, phoneEase);
-  const visualHeight = lerp(diameter, phoneRect.height, phoneEase);
   const bottomY = centerPx.y + radiusPx;
   const floorDistance = Math.max(0, Math.min(1, Math.abs(floorPx.y - bottomY) / Math.max(1, diameter * 2.2)));
   const contact = 1 - floorDistance;
 
-  clayCircle.style.left = `${visualX.toFixed(2)}px`;
-  clayCircle.style.top = `${visualY.toFixed(2)}px`;
-  clayCircle.style.width = `${visualWidth.toFixed(2)}px`;
-  clayCircle.style.height = `${visualHeight.toFixed(2)}px`;
-  clayCircle.style.clipPath = `inset(${(iphoneReveal * 100).toFixed(2)}% 0 0 0 round ${(visualWidth * 0.17).toFixed(2)}px)`;
+  clayCircle.style.left = `${centerPx.x.toFixed(2)}px`;
+  clayCircle.style.top = `${centerPx.y.toFixed(2)}px`;
+  clayCircle.style.width = `${diameter.toFixed(2)}px`;
+  clayCircle.style.height = `${diameter.toFixed(2)}px`;
+  clayCircle.style.clipPath = "none";
 
   orbShadow.style.left = `${floorPx.x.toFixed(2)}px`;
   orbShadow.style.top = `${floorPx.y.toFixed(2)}px`;
@@ -466,6 +454,41 @@ function syncClayCircleToSphere(iphoneMorph = 0, iphoneReveal = 0) {
   orbRipple.style.width = `${rippleSize.toFixed(2)}px`;
   orbRipple.style.height = `${(rippleSize * 0.36).toFixed(2)}px`;
   orbRipple.style.opacity = "0";
+}
+
+function syncPhoneMask(iphoneMorph, iphoneReveal) {
+  phoneRig.updateWorldMatrix(true, true);
+
+  const center = new THREE.Vector3(0, 0, 0);
+  const edge = new THREE.Vector3(SPHERE_RADIUS, 0, 0);
+  sphereGroup.localToWorld(center);
+  sphereGroup.localToWorld(edge);
+
+  const centerPx = projectToScreen(center);
+  const edgePx = projectToScreen(edge);
+  const diameter = Math.max(1, Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y) * 2);
+  const fallbackPhoneWidth = diameter * 1.18;
+  const fallbackPhoneHeight = fallbackPhoneWidth * IPHONE_ASPECT_RATIO;
+  const phoneRect = getProjectedPhoneRect() || {
+    x: centerPx.x,
+    y: centerPx.y,
+    width: fallbackPhoneWidth,
+    height: fallbackPhoneHeight
+  };
+  const grow = easeInOutCubic(iphoneMorph);
+  const maskX = lerp(centerPx.x, phoneRect.x, grow);
+  const maskY = lerp(centerPx.y, phoneRect.y, grow);
+  const maskWidth = lerp(diameter, phoneRect.width, grow);
+  const maskHeight = lerp(diameter, phoneRect.height, grow);
+  const radius = lerp(maskWidth * 0.5, Math.min(maskWidth, maskHeight) * 0.12, grow);
+
+  phoneMask.style.left = `${maskX.toFixed(2)}px`;
+  phoneMask.style.top = `${maskY.toFixed(2)}px`;
+  phoneMask.style.width = `${maskWidth.toFixed(2)}px`;
+  phoneMask.style.height = `${maskHeight.toFixed(2)}px`;
+  phoneMask.style.borderRadius = `${radius.toFixed(2)}px`;
+  phoneMask.style.opacity = (iphoneMorph * (1 - smoothstep(0.98, 1, iphoneReveal))).toFixed(3);
+  phoneMask.style.clipPath = `inset(${(iphoneReveal * 100).toFixed(2)}% 0 0 0 round ${radius.toFixed(2)}px)`;
 }
 
 function getProjectedPhoneRect() {

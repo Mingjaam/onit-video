@@ -65,6 +65,26 @@
       will-change: left, top, width, height, opacity;
     }
 
+    .phone-mask {
+      position: fixed;
+      left: 50%;
+      top: 50%;
+      z-index: 2;
+      width: 240px;
+      height: 500px;
+      opacity: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 34% 20%, #48e85b 0%, #08c923 48%, #00b81e 100%);
+      border-radius: 42px;
+      box-shadow:
+        0 28px 42px rgba(0, 0, 0, 0.42),
+        0 0 28px rgba(8, 201, 35, 0.2);
+      transform: translate(-50%, -50%);
+      transform-origin: center center;
+      will-change: left, top, width, height, opacity, clip-path, border-radius;
+    }
+
     .orb-shadow,
     .orb-ripple {
       position: fixed;
@@ -171,6 +191,7 @@
     </defs>
     <path id="orbPath" fill="url(#orbGradient)" fill-rule="evenodd"></path>
   </svg>
+  <div class="phone-mask" aria-hidden="true"></div>
   <div class="brand">ON-IT</div>
   <div class="progress"></div>
 
@@ -182,6 +203,6 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=screen-projected-iphone-mask"></script>
+  <script type="module" src="./logo-orb-test.js?v=pixel-phone-mask"></script>
 </body>
 </html>
