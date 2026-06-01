@@ -135,9 +135,11 @@ const sphere = new THREE.Mesh(
     sheen: 0.4,
     sheenColor: new THREE.Color(0xcaf3b6),
     transparent: true,
-    opacity: 0
+    opacity: 0,
+    depthWrite: false
   })
 );
+sphere.visible = false;
 sphere.castShadow = true;
 sphere.receiveShadow = true;
 sphereGroup.add(sphere);
