@@ -120,8 +120,7 @@ const ipadScreenMaterials = [];
 const screenVideos = {
   wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL),
   wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
-    rotation: Math.PI * 1.5,
-    mirrorY: true
+    rotation: Math.PI / 2
   }),
   wsMac: makeScreenVideo(WS_MAC_VIDEO_URL),
   voice: makeScreenVideo(VOICE_VIDEO_URL),
@@ -280,7 +279,6 @@ function animate() {
   updateIpad(runTime);
   updateStageCaption(runTime);
   updateDeviceScreenVideos(runTime);
-  updateDynamicScreenVideoTextures();
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -1385,16 +1383,12 @@ function makeScreenVideo(url, options = {}) {
     });
   }
 
-  const mirroredVideo = (options.mirrorX || options.mirrorY)
-    ? makeMirroredVideoTexture(video, options)
-    : null;
-  const texture = mirroredVideo?.texture || new THREE.VideoTexture(video);
+  const texture = new THREE.VideoTexture(video);
   configureScreenVideoTexture(texture);
   if (Number.isFinite(options.rotation)) rotateScreenTexture(texture, options.rotation);
   const screenVideo = {
     video,
-    texture,
-    updateTexture: mirroredVideo?.updateTexture
+    texture
   };
   video.addEventListener("loadeddata", () => {
     holdScreenVideoFirstFrame(screenVideo);
@@ -1402,38 +1396,6 @@ function makeScreenVideo(url, options = {}) {
   video.load();
 
   return screenVideo;
-}
-
-function makeMirroredVideoTexture(video, options) {
-  const canvas = document.createElement("canvas");
-  const ctx = canvas.getContext("2d");
-  canvas.width = 2;
-  canvas.height = 2;
-
-  const texture = new THREE.CanvasTexture(canvas);
-  const updateTexture = () => {
-    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
-    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
-    }
-
-    ctx.save();
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    if (options.mirrorX) {
-      ctx.translate(canvas.width, 0);
-      ctx.scale(-1, 1);
-    }
-    if (options.mirrorY) {
-      ctx.translate(0, canvas.height);
-      ctx.scale(1, -1);
-    }
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    ctx.restore();
-    texture.needsUpdate = true;
-  };
-
-  return { texture, updateTexture };
 }
 
 function configureScreenVideoTexture(texture) {
@@ -1467,16 +1429,7 @@ function holdScreenVideoFirstFrame(screenVideo) {
   if (screenVideo.video.readyState >= 1 && Math.abs(screenVideo.video.currentTime) > 0.04) {
     resetScreenVideo(screenVideo);
   }
-  updateScreenVideoTexture(screenVideo);
   screenVideo.texture.needsUpdate = true;
-}
-
-function updateDynamicScreenVideoTextures() {
-  Object.values(screenVideos).forEach(updateScreenVideoTexture);
-}
-
-function updateScreenVideoTexture(screenVideo) {
-  if (screenVideo.updateTexture) screenVideo.updateTexture();
 }
 
 function pauseAndResetAllScreenVideos() {
