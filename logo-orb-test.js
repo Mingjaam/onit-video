@@ -1242,7 +1242,7 @@ function fillIpadScreenWhite(model) {
     object.material = material;
     object.renderOrder = 34;
     ipadScreenMaterials.push(material);
-    fitTextureToUvBounds(screenVideos.wsIpad.texture, object.geometry);
+    fitTextureToUvBounds(screenVideos.wsIpad.texture, object.geometry, { mirrorX: true });
     found = true;
   });
 
@@ -1607,7 +1607,7 @@ function drawMouseCursor(ctx, x, y, size, click) {
   ctx.restore();
 }
 
-function fitTextureToUvBounds(texture, geometry) {
+function fitTextureToUvBounds(texture, geometry, options = {}) {
   const uv = geometry.attributes.uv;
   if (!uv) return;
 
@@ -1629,8 +1629,10 @@ function fitTextureToUvBounds(texture, geometry) {
   const height = Math.max(0.001, maxV - minV);
   texture.wrapS = THREE.ClampToEdgeWrapping;
   texture.wrapT = THREE.ClampToEdgeWrapping;
-  texture.repeat.set(1 / width, 1 / height);
-  texture.offset.set(-minU / width, -minV / height);
+  const repeatX = 1 / width;
+  const offsetX = -minU / width;
+  texture.repeat.set(options.mirrorX ? -repeatX : repeatX, 1 / height);
+  texture.offset.set(options.mirrorX ? 1 - offsetX : offsetX, -minV / height);
   texture.needsUpdate = true;
 }
 
