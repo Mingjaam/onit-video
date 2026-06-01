@@ -18,7 +18,7 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 31.2;
+const LOOP_DURATION = 36.6;
 const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
@@ -51,6 +51,8 @@ const MACBOOK_SCENE_START = DEVICE_CAPTION_END + 0.25;
 const DEVICE_SCENE_TRANSITION_DURATION = 1.25;
 const SECOND_MACBOOK_REVEAL_START = MACBOOK_SCENE_START + 0.1;
 const SECOND_MACBOOK_REVEAL_DURATION = 1.2;
+const PRD_SCENE_START = SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION + 2.2;
+const PRD_SCENE_TRANSITION_DURATION = 1.35;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -588,18 +590,22 @@ function updateCamera(t, runTime) {
   const ball = sphereGroup.position;
   const reveal = smoothstep(5.95, 7.55, runTime);
   const macScene = getMacbookSceneProgress(runTime);
+  const prdScene = getPrdSceneProgress(runTime);
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
   camera.position.y = lerp(camera.position.y, 0.8, reveal);
   camera.position.z = lerp(9.4, 6.65, reveal);
   camera.position.z = lerp(camera.position.z, 6.95, macScene);
+  camera.position.z = lerp(camera.position.z, 5.55, prdScene);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
   cameraTarget.z = lerp(cameraTarget.z, -1.25, reveal);
   cameraTarget.y = lerp(cameraTarget.y, -0.48, macScene);
   cameraTarget.z = lerp(cameraTarget.z, -1.1, macScene);
+  cameraTarget.y = lerp(cameraTarget.y, -0.5, prdScene);
+  cameraTarget.z = lerp(cameraTarget.z, -1.0, prdScene);
   camera.lookAt(cameraTarget);
 }
 
@@ -644,6 +650,7 @@ function updateLaptop(runTime) {
 
   const eased = easeOutCubic(slide);
   const macScene = easeInOutCubic(getMacbookSceneProgress(runTime));
+  const prdScene = easeInOutCubic(getPrdSceneProgress(runTime));
   const lineUpX = lerp(4.8, 2.24, eased);
   const lineUpY = lerp(-0.82, -0.66, eased);
   const lineUpZ = lerp(-0.64, -0.44, eased);
@@ -652,17 +659,25 @@ function updateLaptop(runTime) {
   const lineUpRotZ = lerp(0.04, 0, eased);
   const lineUpScale = lerp(0.78, 0.96, eased);
 
+  const dualX = lerp(lineUpX, -1.82, macScene);
+  const dualY = lerp(lineUpY, -0.62, macScene);
+  const dualZ = lerp(lineUpZ, -0.44, macScene);
+  const dualRotX = lerp(lineUpRotX, -0.02, macScene);
+  const dualRotY = lerp(lineUpRotY, 0.08, macScene);
+  const dualRotZ = lerp(lineUpRotZ, 0, macScene);
+  const dualScale = lerp(lineUpScale, 0.88, macScene);
+
   laptopRig.position.set(
-    lerp(lineUpX, -1.82, macScene),
-    lerp(lineUpY, -0.62, macScene),
-    lerp(lineUpZ, -0.44, macScene)
+    lerp(dualX, 0, prdScene),
+    lerp(dualY, -0.58, prdScene),
+    lerp(dualZ, -0.42, prdScene)
   );
   laptopRig.rotation.set(
-    lerp(lineUpRotX, -0.02, macScene),
-    lerp(lineUpRotY, 0.08, macScene),
-    lerp(lineUpRotZ, 0, macScene)
+    lerp(dualRotX, -0.02, prdScene),
+    lerp(dualRotY, 0, prdScene),
+    lerp(dualRotZ, 0, prdScene)
   );
-  laptopRig.scale.setScalar(lerp(lineUpScale, 0.88, macScene));
+  laptopRig.scale.setScalar(lerp(dualScale, 1.14, prdScene));
 
   laptopRig.traverse((object) => {
     setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
@@ -671,14 +686,15 @@ function updateLaptop(runTime) {
 
 function updateSecondLaptop(runTime) {
   const reveal = smoothstep(SECOND_MACBOOK_REVEAL_START, SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION, runTime);
-  secondLaptopRig.visible = reveal > 0.001;
+  const prdScene = easeInOutCubic(getPrdSceneProgress(runTime));
+  secondLaptopRig.visible = reveal > 0.001 && prdScene < 0.995;
   if (!secondLaptopRig.visible) return;
 
   const eased = easeOutCubic(reveal);
   secondLaptopRig.position.set(
-    lerp(4.2, 1.82, eased),
-    lerp(-0.78, -0.62, eased),
-    lerp(-0.64, -0.44, eased)
+    lerp(lerp(4.2, 1.82, eased), 4.15, prdScene),
+    lerp(lerp(-0.78, -0.62, eased), -0.72, prdScene),
+    lerp(lerp(-0.64, -0.44, eased), -0.54, prdScene)
   );
   secondLaptopRig.rotation.set(
     lerp(0.08, -0.02, eased),
@@ -688,7 +704,7 @@ function updateSecondLaptop(runTime) {
   secondLaptopRig.scale.setScalar(lerp(0.76, 0.88, eased));
 
   secondLaptopRig.traverse((object) => {
-    setObjectOpacity(object, smoothstep(0.02, 0.85, reveal));
+    setObjectOpacity(object, smoothstep(0.02, 0.85, reveal) * (1 - prdScene));
   });
 }
 
@@ -735,6 +751,10 @@ function updateStageCaption(runTime) {
 
 function getMacbookSceneProgress(runTime) {
   return smoothstep(MACBOOK_SCENE_START, MACBOOK_SCENE_START + DEVICE_SCENE_TRANSITION_DURATION, runTime);
+}
+
+function getPrdSceneProgress(runTime) {
+  return smoothstep(PRD_SCENE_START, PRD_SCENE_START + PRD_SCENE_TRANSITION_DURATION, runTime);
 }
 
 function updateOrbShape(progress, phoneShapeProgress = 0) {
