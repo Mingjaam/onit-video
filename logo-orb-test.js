@@ -33,10 +33,10 @@ const PHONE_TYPE_START = PHONE_FADE_END + 0.25;
 const PHONE_TYPE_INTERVAL = 0.16;
 const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
 const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
-const PHONE_SPIN_DURATION = 2.05;
+const PHONE_SPIN_DURATION = 3.0;
 const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.5;
 const LAPTOP_SLIDE_START = PHONE_CURSOR_CLICK_TIME + 0.06;
-const LAPTOP_SLIDE_DURATION = 1.65;
+const LAPTOP_SLIDE_DURATION = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION - LAPTOP_SLIDE_START;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -619,7 +619,7 @@ function updateLaptop(runTime) {
   const eased = easeOutCubic(slide);
   laptopRig.position.set(
     lerp(4.4, 1.18, eased),
-    lerp(-0.36, -0.28, eased),
+    lerp(-0.68, -0.56, eased),
     lerp(-0.58, -0.35, eased)
   );
   laptopRig.rotation.set(
@@ -935,7 +935,6 @@ function prepareTransparentModel(model) {
 }
 
 function fillLaptopScreenWhite(model) {
-  model.updateWorldMatrix(true, true);
   const whiteScreen = new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
@@ -944,23 +943,20 @@ function fillLaptopScreenWhite(model) {
     toneMapped: false
   });
 
+  const screenName = "tfTbkkzhxqpKRgC";
+  let found = false;
   model.traverse((object) => {
-    if (!object.isMesh || !object.geometry) return;
+    if (!object.isMesh || object.name !== screenName) return;
 
-    const box = new THREE.Box3().setFromObject(object);
-    if (box.isEmpty()) return;
+    object.material = whiteScreen.clone();
+    object.renderOrder = 35;
+    found = true;
+  });
 
-    const size = box.getSize(new THREE.Vector3());
-    const dims = [size.x, size.y, size.z].sort((a, b) => b - a);
-    const long = dims[0];
-    const short = dims[1];
-    const thin = dims[2];
-    const aspect = long / Math.max(short, 0.001);
+  if (found) return;
 
-    if (long < 1.7 || short < 1.0) return;
-    if (aspect < 1.32 || aspect > 1.7) return;
-    if (thin > 0.12) return;
-
+  model.traverse((object) => {
+    if (!object.isMesh || !/screen|display|lcd/i.test(object.name || "")) return;
     object.material = whiteScreen.clone();
     object.renderOrder = 35;
   });
