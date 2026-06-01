@@ -22,7 +22,6 @@ const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
-const MACBOOK_ASSET_URL = "./assets/macbook_pro_14_inch_M5.glb";
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -80,19 +79,6 @@ const rim = new THREE.PointLight(0x8effb4, 2.25, 12, 2);
 rim.position.set(-3.6, -1.2, 2.7);
 scene.add(rim);
 
-const macbookLightTarget = new THREE.Object3D();
-macbookLightTarget.position.set(0, -1.02, -1.35);
-scene.add(macbookLightTarget);
-
-const macbookKey = new THREE.SpotLight(0xffffff, 0, 9, Math.PI / 4.8, 0.72, 1.25);
-macbookKey.position.set(0.45, 1.15, 2.8);
-macbookKey.target = macbookLightTarget;
-scene.add(macbookKey);
-
-const macbookRim = new THREE.PointLight(0x9eefff, 0, 6, 2);
-macbookRim.position.set(-1.85, -0.45, -0.35);
-scene.add(macbookRim);
-
 const trackGroup = new THREE.Group();
 trackGroup.visible = true;
 scene.add(trackGroup);
@@ -119,11 +105,6 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
-
-const macbookRig = new THREE.Group();
-macbookRig.visible = false;
-scene.add(macbookRig);
-loadMacbookAsset();
 
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
@@ -187,7 +168,6 @@ function animate() {
   const logoMorph = smoothstep(5.65, 10.85, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
-  updateMacbook(runTime, logoMorph, t);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph);
 
@@ -483,28 +463,6 @@ function updateCamera(t, runTime) {
   camera.lookAt(cameraTarget);
 }
 
-function updateMacbook(runTime, logoMorph, t) {
-  const reveal = smoothstep(5.85, 7.45, runTime);
-  macbookRig.visible = reveal > 0.01;
-  if (!macbookRig.visible) return;
-
-  const e = easeOutCubic(reveal);
-  macbookRig.position.set(0, lerp(-2.55, -1.02, e), -1.35);
-  macbookRig.rotation.set(lerp(0.18, -0.02, e), Math.sin(t * 0.32) * 0.04, 0);
-  macbookRig.scale.setScalar(lerp(0.84, 1.18, e));
-  macbookLightTarget.position.copy(macbookRig.position);
-  macbookLightTarget.position.y += 0.12;
-  macbookKey.position.set(macbookRig.position.x + 0.45, macbookRig.position.y + 2.1, macbookRig.position.z + 4.15);
-  macbookKey.intensity = lerp(0, 5.2, e);
-  macbookRim.position.set(macbookRig.position.x - 2.05, macbookRig.position.y + 0.28, macbookRig.position.z + 0.65);
-  macbookRim.intensity = lerp(0, 2.9, e);
-
-  macbookRig.traverse((object) => {
-    setObjectOpacity(object, Math.min(1, e));
-  });
-
-}
-
 function updateOrbShape(progress) {
   const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
   const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
@@ -697,80 +655,6 @@ function addGate(position, rotationY, label, size = 1) {
   screen.material.needsUpdate = true;
 
   trackGroup.add(group);
-}
-
-function loadMacbookAsset() {
-  import("three/addons/loaders/GLTFLoader.js")
-    .then(({ GLTFLoader }) => {
-      const loader = new GLTFLoader();
-      loader.load(
-        MACBOOK_ASSET_URL,
-        (gltf) => {
-          const model = gltf.scene;
-          normalizeModel(model, 3.9);
-          model.rotation.y = Math.PI;
-          model.traverse((object) => {
-            if (!object.isMesh) return;
-            object.castShadow = true;
-            object.receiveShadow = true;
-            if (!object.material) return;
-            const materials = Array.isArray(object.material) ? object.material : [object.material];
-            materials.forEach((material) => {
-              material.transparent = true;
-              material.opacity = 0;
-              material.envMapIntensity = Math.max(material.envMapIntensity || 0, 1.35);
-              if (material.color) material.color.offsetHSL(0, -0.04, 0.08);
-              if (material.emissive) material.emissive.set(0x020402);
-              material.needsUpdate = true;
-            });
-          });
-          macbookRig.add(model);
-        },
-        undefined,
-        () => {
-          macbookRig.add(makeFallbackMacbook());
-        }
-      );
-    })
-    .catch(() => {
-      macbookRig.add(makeFallbackMacbook());
-    });
-}
-
-function normalizeModel(model, targetWidth) {
-  const box = new THREE.Box3().setFromObject(model);
-  const size = box.getSize(new THREE.Vector3());
-  const center = box.getCenter(new THREE.Vector3());
-  const scale = targetWidth / Math.max(size.x, size.y, size.z, 0.001);
-  model.position.sub(center);
-  model.scale.setScalar(scale);
-}
-
-function makeFallbackMacbook() {
-  const group = new THREE.Group();
-  const base = new THREE.Mesh(new THREE.BoxGeometry(3.6, 0.12, 2.1), new THREE.MeshStandardMaterial({ color: 0x171d19, roughness: 0.48, metalness: 0.12, transparent: true, opacity: 0 }));
-  base.position.y = -0.62;
-  base.castShadow = true;
-  group.add(base);
-
-  const screenShell = new THREE.Mesh(new THREE.BoxGeometry(3.5, 2.05, 0.12), new THREE.MeshStandardMaterial({ color: 0x0d130f, roughness: 0.5, metalness: 0.08, transparent: true, opacity: 0 }));
-  screenShell.position.set(0, 0.45, -0.78);
-  screenShell.castShadow = true;
-  group.add(screenShell);
-
-  const screen = new THREE.Mesh(new THREE.PlaneGeometry(3.18, 1.72), new THREE.MeshBasicMaterial({ color: 0x08230e, transparent: true, opacity: 0 }));
-  screen.position.set(0, 0.45, -0.71);
-  group.add(screen);
-  return group;
-}
-
-function setObjectOpacity(object, opacity) {
-  if (!object.material) return;
-  const materials = Array.isArray(object.material) ? object.material : [object.material];
-  materials.forEach((material) => {
-    material.transparent = true;
-    material.opacity = opacity;
-  });
 }
 
 function addRoom() {
