@@ -18,7 +18,6 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 36.6;
 const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
@@ -27,6 +26,16 @@ const METAL = 0xb8bab7;
 const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
 const MACBOOK_ASSET_URL = "./assets/macbook_pro_14_inch_M5.glb";
 const IPAD_ASSET_URL = "./assets/apple_ipad_pro.glb?v=ipad-centered-v2";
+const WS_PHONE_VIDEO_URL = "./assets/웹소켓폰.mp4";
+const WS_IPAD_VIDEO_URL = "./assets/웹소켓아이패드2.mp4";
+const WS_MAC_VIDEO_URL = "./assets/웹소켓맥.mp4";
+const VOICE_VIDEO_URL = "./assets/음성.mp4";
+const PRD_VIDEO_URL = "./assets/PRD.mp4";
+const PRD_SKIP_START = 6;
+const PRD_SKIP_END = 137;
+const WS_SCENE_DURATION = 26.25;
+const VOICE_SCENE_DURATION = 7.1;
+const PRD_SCENE_DURATION = 36.75;
 const PHONE_FADE_START = 11.85;
 const PHONE_FADE_END = 13.35;
 const PHONE_IMAGE_INTERVAL = 0.75;
@@ -47,12 +56,14 @@ const DEVICE_CAPTION_TEXT = "Mobile Application Published";
 const DEVICE_CAPTION_START = LINEUP_READY_TIME + 0.45;
 const DEVICE_CAPTION_INTERVAL = 0.055;
 const DEVICE_CAPTION_END = DEVICE_CAPTION_START + (DEVICE_CAPTION_TEXT.length * DEVICE_CAPTION_INTERVAL);
-const MACBOOK_SCENE_START = DEVICE_CAPTION_END + 0.25;
+const MACBOOK_SCENE_START = LINEUP_READY_TIME + WS_SCENE_DURATION + 0.35;
 const DEVICE_SCENE_TRANSITION_DURATION = 1.25;
 const SECOND_MACBOOK_REVEAL_START = MACBOOK_SCENE_START + 0.1;
 const SECOND_MACBOOK_REVEAL_DURATION = 1.2;
-const PRD_SCENE_START = SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION + 2.2;
+const VOICE_VIDEO_START = SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION;
+const PRD_SCENE_START = VOICE_VIDEO_START + VOICE_SCENE_DURATION + 0.35;
 const PRD_SCENE_TRANSITION_DURATION = 1.35;
+const LOOP_DURATION = 3.35 + PRD_SCENE_START + PRD_SCENE_TRANSITION_DURATION + PRD_SCENE_DURATION + 1.2;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -103,7 +114,23 @@ container.appendChild(renderer.domElement);
 const phoneIntroScreen = makePhoneIntroScreenTexture();
 const phoneScreenTextures = loadPhoneScreenTextures();
 const phoneScreenMaterials = [];
+const laptopScreenMaterials = [];
+const secondLaptopScreenMaterials = [];
+const ipadScreenMaterials = [];
+const screenVideos = {
+  wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL),
+  wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
+    rotation: Math.PI / 2
+  }),
+  wsMac: makeScreenVideo(WS_MAC_VIDEO_URL),
+  voice: makeScreenVideo(VOICE_VIDEO_URL),
+  prd: makeScreenVideo(PRD_VIDEO_URL, {
+    skipStart: PRD_SKIP_START,
+    skipEnd: PRD_SKIP_END
+  })
+};
 let currentPhoneScreenMapKey = "";
+let currentDeviceScreenStage = "";
 let phoneScreenIconLocal = null;
 let phoneScreenIconRadius = 0.09;
 
@@ -251,6 +278,7 @@ function animate() {
   updateSecondLaptop(runTime);
   updateIpad(runTime);
   updateStageCaption(runTime);
+  updateDeviceScreenVideos(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -757,6 +785,67 @@ function getPrdSceneProgress(runTime) {
   return smoothstep(PRD_SCENE_START, PRD_SCENE_START + PRD_SCENE_TRANSITION_DURATION, runTime);
 }
 
+function updateDeviceScreenVideos(runTime) {
+  const stage = getDeviceScreenStage(runTime);
+
+  if (stage !== currentDeviceScreenStage) {
+    currentDeviceScreenStage = stage;
+    resetVideosForStage(stage);
+  }
+
+  if (stage === "websocket") {
+    setPhoneScreenMap(screenVideos.wsPhone.texture, "ws-phone-video");
+    setScreenMaterialsMap(ipadScreenMaterials, screenVideos.wsIpad.texture);
+    setScreenMaterialsMap(laptopScreenMaterials, screenVideos.wsMac.texture);
+    playScreenVideo(screenVideos.wsPhone);
+    playScreenVideo(screenVideos.wsIpad);
+    playScreenVideo(screenVideos.wsMac);
+    return;
+  }
+
+  if (stage === "voice") {
+    setScreenMaterialsMap(laptopScreenMaterials, screenVideos.voice.texture);
+    setScreenMaterialsMap(secondLaptopScreenMaterials, screenVideos.voice.texture);
+    playScreenVideo(screenVideos.voice);
+    return;
+  }
+
+  if (stage === "prd") {
+    setScreenMaterialsMap(laptopScreenMaterials, screenVideos.prd.texture);
+    playScreenVideo(screenVideos.prd);
+  }
+}
+
+function getDeviceScreenStage(runTime) {
+  if (runTime >= PRD_SCENE_START) return "prd";
+  if (runTime >= VOICE_VIDEO_START) return "voice";
+  if (runTime >= LINEUP_READY_TIME) return "websocket";
+  return "intro";
+}
+
+function resetVideosForStage(stage) {
+  if (stage === "intro") return;
+
+  const videosByStage = {
+    websocket: [screenVideos.wsPhone, screenVideos.wsIpad, screenVideos.wsMac],
+    voice: [screenVideos.voice],
+    prd: [screenVideos.prd]
+  };
+
+  (videosByStage[stage] || []).forEach((screenVideo) => {
+    resetScreenVideo(screenVideo);
+    playScreenVideo(screenVideo);
+  });
+}
+
+function setScreenMaterialsMap(materials, texture) {
+  materials.forEach((material) => {
+    if (material.map === texture) return;
+    material.map = texture;
+    material.needsUpdate = true;
+  });
+}
+
 function updateOrbShape(progress, phoneShapeProgress = 0) {
   const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
   const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
@@ -1017,7 +1106,7 @@ function loadLaptopAsset(targetRig = laptopRig) {
           model.rotation.y = 0;
           model.rotation.x = 0;
           prepareTransparentModel(model);
-          fillLaptopScreenWhite(model);
+          fillLaptopScreenWhite(model, getLaptopScreenMaterials(targetRig));
           targetRig.add(model);
         },
         undefined,
@@ -1075,6 +1164,10 @@ function normalizeModel(model, targetSize) {
   model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
 }
 
+function getLaptopScreenMaterials(targetRig) {
+  return targetRig === secondLaptopRig ? secondLaptopScreenMaterials : laptopScreenMaterials;
+}
+
 function prepareTransparentModel(model) {
   model.traverse((object) => {
     if (!object.isMesh) return;
@@ -1092,23 +1185,19 @@ function prepareTransparentModel(model) {
   });
 }
 
-function fillLaptopScreenWhite(model) {
-  const whiteScreen = new THREE.MeshBasicMaterial({
-    color: 0xffffff,
-    transparent: true,
-    opacity: 0,
-    depthWrite: false,
-    side: THREE.DoubleSide,
-    toneMapped: false
-  });
-
+function fillLaptopScreenWhite(model, targetMaterials = laptopScreenMaterials) {
   const screenName = "tfTbkkzhxqpKRgC";
   let found = false;
   model.traverse((object) => {
     if (!object.isMesh || object.name !== screenName) return;
 
-    object.material = whiteScreen.clone();
+    const material = makeDeviceScreenMaterial();
+    object.material = material;
     object.renderOrder = 35;
+    targetMaterials.push(material);
+    fitTextureToUvBounds(screenVideos.wsMac.texture, object.geometry);
+    fitTextureToUvBounds(screenVideos.voice.texture, object.geometry);
+    fitTextureToUvBounds(screenVideos.prd.texture, object.geometry);
     found = true;
   });
 
@@ -1116,36 +1205,45 @@ function fillLaptopScreenWhite(model) {
 
   model.traverse((object) => {
     if (!object.isMesh || !/screen|display|lcd/i.test(object.name || "")) return;
-    object.material = whiteScreen.clone();
+    const material = makeDeviceScreenMaterial();
+    object.material = material;
     object.renderOrder = 35;
+    targetMaterials.push(material);
   });
 }
 
 function fillIpadScreenWhite(model) {
-  const whiteScreen = new THREE.MeshBasicMaterial({
+  let found = false;
+  model.traverse((object) => {
+    if (!object.isMesh || object.name !== "iPad Pro 2020_screen_0") return;
+
+    const material = makeDeviceScreenMaterial();
+    object.material = material;
+    object.renderOrder = 34;
+    ipadScreenMaterials.push(material);
+    fitTextureToUvBounds(screenVideos.wsIpad.texture, object.geometry);
+    found = true;
+  });
+
+  if (found) return;
+
+  model.traverse((object) => {
+    if (!object.isMesh || !/screen|display|lcd/i.test(object.name || "")) return;
+    const material = makeDeviceScreenMaterial();
+    object.material = material;
+    object.renderOrder = 34;
+    ipadScreenMaterials.push(material);
+  });
+}
+
+function makeDeviceScreenMaterial() {
+  return new THREE.MeshBasicMaterial({
     color: 0xffffff,
     transparent: true,
     opacity: 0,
     depthWrite: false,
     side: THREE.DoubleSide,
     toneMapped: false
-  });
-
-  let found = false;
-  model.traverse((object) => {
-    if (!object.isMesh || object.name !== "iPad Pro 2020_screen_0") return;
-
-    object.material = whiteScreen.clone();
-    object.renderOrder = 34;
-    found = true;
-  });
-
-  if (found) return;
-
-  model.traverse((object) => {
-    if (!object.isMesh || !/screen|display|lcd/i.test(object.name || "")) return;
-    object.material = whiteScreen.clone();
-    object.renderOrder = 34;
   });
 }
 
@@ -1215,7 +1313,7 @@ function replacePhoneScreenMaterial(model) {
 
   if (!best) return false;
 
-  const screenTextures = [phoneIntroScreen.texture, ...phoneScreenTextures];
+  const screenTextures = [phoneIntroScreen.texture, ...phoneScreenTextures, screenVideos.wsPhone.texture];
   screenTextures.forEach((texture) => fitTextureToUvBounds(texture, best.object.geometry));
 
   const screenWidth = Math.min(best.size.x, best.size.y);
@@ -1245,6 +1343,62 @@ function loadPhoneScreenTextures() {
     configurePhoneScreenTexture(texture);
     return texture;
   });
+}
+
+function makeScreenVideo(url, options = {}) {
+  const video = document.createElement("video");
+  video.src = url;
+  video.muted = true;
+  video.loop = options.loop === true;
+  video.playsInline = true;
+  video.preload = "auto";
+  video.autoplay = true;
+
+  if (Number.isFinite(options.skipStart) && Number.isFinite(options.skipEnd)) {
+    video.addEventListener("timeupdate", () => {
+      if (video.currentTime >= options.skipStart && video.currentTime < options.skipEnd) {
+        video.currentTime = options.skipEnd;
+      }
+    });
+  }
+
+  const texture = new THREE.VideoTexture(video);
+  configureScreenVideoTexture(texture);
+  if (Number.isFinite(options.rotation)) rotateScreenTexture(texture, options.rotation);
+  video.load();
+
+  return { video, texture };
+}
+
+function configureScreenVideoTexture(texture) {
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = false;
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  return texture;
+}
+
+function rotateScreenTexture(texture, rotation) {
+  texture.center.set(0.5, 0.5);
+  texture.rotation = rotation;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function resetScreenVideo(screenVideo) {
+  try {
+    screenVideo.video.currentTime = 0;
+  } catch {
+    // Some browsers reject seeks before metadata is ready; playback still starts normally.
+  }
+}
+
+function playScreenVideo(screenVideo) {
+  const playPromise = screenVideo.video.play();
+  if (playPromise?.catch) playPromise.catch(() => {});
 }
 
 function makePhoneIntroScreenTexture() {
@@ -1286,7 +1440,7 @@ function updatePhoneScreenSequence(runTime) {
 }
 
 function setPhoneScreenMap(texture, key) {
-  if (key === currentPhoneScreenMapKey) return;
+  if (key === currentPhoneScreenMapKey && phoneScreenMaterials.every((material) => material.map === texture)) return;
 
   currentPhoneScreenMapKey = key;
   phoneScreenMaterials.forEach((material) => {
@@ -1447,7 +1601,7 @@ function addFallbackPhone() {
 }
 
 function addFallbackLaptop(targetRig = laptopRig) {
-  const fallback = makeFallbackLaptop();
+  const fallback = makeFallbackLaptop(getLaptopScreenMaterials(targetRig));
   targetRig.add(fallback);
 }
 
@@ -1491,7 +1645,7 @@ function makeFallbackPhone() {
   return group;
 }
 
-function makeFallbackLaptop() {
+function makeFallbackLaptop(targetMaterials = laptopScreenMaterials) {
   const group = new THREE.Group();
   const baseMaterial = new THREE.MeshPhysicalMaterial({
     color: 0x1b211f,
@@ -1506,8 +1660,10 @@ function makeFallbackLaptop() {
     color: 0xffffff,
     transparent: true,
     opacity: 0,
-    depthWrite: false
+    depthWrite: false,
+    toneMapped: false
   });
+  targetMaterials.push(screenMaterial);
 
   const screen = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.52, 0.06), baseMaterial.clone());
   screen.position.set(0, 0.52, -0.08);
@@ -1542,8 +1698,10 @@ function makeFallbackIpad() {
     color: 0xffffff,
     transparent: true,
     opacity: 0,
-    depthWrite: false
+    depthWrite: false,
+    toneMapped: false
   });
+  ipadScreenMaterials.push(screenMaterial);
 
   const body = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.78, 0.06), bodyMaterial);
   body.castShadow = true;
