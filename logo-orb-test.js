@@ -622,7 +622,7 @@ function updateLaptop(runTime) {
 
   const eased = easeOutCubic(slide);
   laptopRig.position.set(
-    lerp(4.8, 2.35, eased),
+    lerp(4.8, 2.24, eased),
     lerp(-0.82, -0.66, eased),
     lerp(-0.64, -0.44, eased)
   );
