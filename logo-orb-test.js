@@ -24,6 +24,19 @@ const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
 const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
+const PHONE_FADE_START = 11.85;
+const PHONE_FADE_END = 13.35;
+const PHONE_IMAGE_INTERVAL = 0.75;
+const PHONE_SCREEN_IMAGE_URLS = [
+  "./assets/img/IMG_5928.PNG",
+  "./assets/img/IMG_5929.PNG",
+  "./assets/img/IMG_5930.PNG",
+  "./assets/img/IMG_5931.PNG",
+  "./assets/img/IMG_5932.PNG"
+];
+const BALL_MOTION_TIME_SCALE = 0.5;
+const BALL_SIM_FALL_DURATION = 4.95;
+const BALL_SIM_RETURN_END = 6.25;
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -55,6 +68,10 @@ renderer.toneMappingExposure = 1.32;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
+
+const phoneScreenTextures = loadPhoneScreenTextures();
+const phoneScreenMaterials = [];
+let currentPhoneScreenTextureIndex = -1;
 
 const hemi = new THREE.HemisphereLight(0xeaffef, 0x172018, 0.74);
 scene.add(hemi);
@@ -176,7 +193,7 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
-  const phoneFade = smoothstep(11.85, 13.35, runTime);
+  const phoneFade = smoothstep(PHONE_FADE_START, PHONE_FADE_END, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, phoneFade, t);
@@ -248,6 +265,7 @@ function updateBall(t, dropReady, runTime, circleIn, logoMorph) {
 }
 
 function simulateMarble(time, startY, logoMorph) {
+  const motionTime = time / BALL_MOTION_TIME_SCALE;
   const dt = 1 / 120;
   const gravity = new THREE.Vector3(0, -7.35, 0);
   const state = {
@@ -263,14 +281,14 @@ function simulateMarble(time, startY, logoMorph) {
     restTime: 0
   };
 
-  let remaining = Math.min(time, 4.95);
+  let remaining = Math.min(motionTime, BALL_SIM_FALL_DURATION);
   while (remaining > 0) {
     const step = Math.min(dt, remaining);
     stepPhysics(state, step, gravity);
     remaining -= step;
   }
 
-  const lift = smoothstep(4.95, 6.25, time);
+  const lift = smoothstep(BALL_SIM_FALL_DURATION, BALL_SIM_RETURN_END, motionTime);
   if (lift > 0) {
     const liftedY = lerp(state.position.y, MORPH_START_Y, easeInOutCubic(lift));
     state.position.set(0, liftedY, 0);
@@ -482,6 +500,8 @@ function updateCamera(t, runTime) {
 function updatePhone(runTime, phoneFade, t) {
   phoneRig.visible = phoneFade > 0.01;
   if (!phoneRig.visible) return;
+
+  updatePhoneScreenTexture(Math.max(0, runTime - PHONE_FADE_START));
 
   const settle = easeOutCubic(phoneFade);
   phoneRig.position.set(0, 0, -0.2);
@@ -811,18 +831,58 @@ function replacePhoneScreenMaterial(model) {
 
   if (!best) return false;
 
-  const screenTexture = makeProjectListScreenTexture(false);
-  fitTextureToUvBounds(screenTexture, best.object.geometry);
-  best.object.material = new THREE.MeshBasicMaterial({
-    map: screenTexture,
+  const screenTextures = phoneScreenTextures.length
+    ? phoneScreenTextures
+    : [makeProjectListScreenTexture(false)];
+  screenTextures.forEach((texture) => fitTextureToUvBounds(texture, best.object.geometry));
+
+  const screenMaterial = new THREE.MeshBasicMaterial({
+    map: screenTextures[0],
     transparent: true,
     opacity: 0,
     depthTest: true,
     depthWrite: false,
     toneMapped: false
   });
+  best.object.material = screenMaterial;
   best.object.renderOrder = 30;
+  phoneScreenMaterials.push(screenMaterial);
   return true;
+}
+
+function loadPhoneScreenTextures() {
+  const loader = new THREE.TextureLoader();
+  return PHONE_SCREEN_IMAGE_URLS.map((url) => {
+    const texture = loader.load(url);
+    configurePhoneScreenTexture(texture);
+    return texture;
+  });
+}
+
+function configurePhoneScreenTexture(texture) {
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.flipY = false;
+  texture.anisotropy = Math.min(8, renderer.capabilities.getMaxAnisotropy());
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.generateMipmaps = false;
+  texture.minFilter = THREE.LinearFilter;
+  texture.magFilter = THREE.LinearFilter;
+  texture.needsUpdate = true;
+  return texture;
+}
+
+function updatePhoneScreenTexture(screenTime) {
+  if (!phoneScreenMaterials.length || !phoneScreenTextures.length) return;
+
+  const textureIndex = Math.floor(screenTime / PHONE_IMAGE_INTERVAL) % phoneScreenTextures.length;
+  if (textureIndex === currentPhoneScreenTextureIndex) return;
+
+  currentPhoneScreenTextureIndex = textureIndex;
+  phoneScreenMaterials.forEach((material) => {
+    material.map = phoneScreenTextures[textureIndex];
+    material.needsUpdate = true;
+  });
 }
 
 function fitTextureToUvBounds(texture, geometry) {
@@ -877,7 +937,7 @@ function makeFallbackPhone() {
   const screen = new THREE.Mesh(
     new THREE.PlaneGeometry(0.82, 1.72),
     new THREE.MeshBasicMaterial({
-      map: makeProjectListScreenTexture(true),
+      map: phoneScreenTextures[0] || makeProjectListScreenTexture(true),
       transparent: true,
       opacity: 0,
       depthWrite: false,
