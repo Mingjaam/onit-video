@@ -34,7 +34,7 @@ const PHONE_TYPE_INTERVAL = 0.16;
 const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
 const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
 const PHONE_SPIN_DURATION = 2.05;
-const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.48;
+const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.5;
 const LAPTOP_SLIDE_START = PHONE_CURSOR_CLICK_TIME + 0.06;
 const LAPTOP_SLIDE_DURATION = 1.65;
 const PHONE_HOME_ICON_U = 0.5;
@@ -578,24 +578,32 @@ function updatePhone(runTime, phoneFade, t) {
   updatePhoneScreenSequence(runTime);
 
   const settle = easeOutCubic(phoneFade);
-  const spinProgress = easeInOutCubic(smoothstep(PHONE_CURSOR_CLICK_TIME, PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION, runTime));
-  const spinLift = Math.sin(spinProgress * Math.PI);
+  const flipRaw = smoothstep(PHONE_CURSOR_CLICK_TIME, PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION, runTime);
+  const firstFlip = easeInOutCubic(smoothstep(0, 0.46, flipRaw));
+  const secondFlip = easeInOutCubic(smoothstep(0.54, 1, flipRaw));
+  const flipAmount = firstFlip + secondFlip;
+  const moveProgress = easeInOutCubic(flipRaw);
+  const flipAngle = -Math.PI * flipAmount;
+  const flipLift = Math.max(Math.sin(firstFlip * Math.PI), Math.sin(secondFlip * Math.PI));
   const baseX = lerp(0.08, 0, settle);
   const baseY = lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade;
   const baseZ = lerp(-0.02, 0, settle);
-  const baseScale = lerp(0.86, 1.08, settle);
+  const scale = (lerp(0.86, 1.08, settle) * lerp(1, 0.74, moveProgress)) + flipLift * 0.13;
+  const hingeHalfWidth = 0.52 * scale;
+  const hingeOffsetX = hingeHalfWidth * (Math.cos(flipAngle) - 1);
+  const hingeOffsetZ = -hingeHalfWidth * Math.sin(flipAngle);
 
   phoneRig.position.set(
-    lerp(0, -1.62, spinProgress),
-    spinLift * 0.2,
-    lerp(-0.2, -0.08, spinProgress) + spinLift * 0.44
+    lerp(0, -1.62, moveProgress) + hingeOffsetX,
+    flipLift * 0.2,
+    lerp(-0.2, -0.08, moveProgress) + flipLift * 0.44 + hingeOffsetZ
   );
   phoneRig.rotation.set(
-    baseX - spinLift * 0.22,
-    baseY - spinProgress * Math.PI * 2,
-    baseZ + spinLift * 0.18
+    baseX - flipLift * 0.22,
+    baseY + flipAngle,
+    baseZ + flipLift * 0.18
   );
-  phoneRig.scale.setScalar(baseScale * lerp(1, 0.74, spinProgress) + spinLift * 0.13);
+  phoneRig.scale.setScalar(scale);
 
   const opacity = smoothstep(0.08, 0.9, phoneFade);
   phoneRig.traverse((object) => {
@@ -611,7 +619,7 @@ function updateLaptop(runTime) {
   const eased = easeOutCubic(slide);
   laptopRig.position.set(
     lerp(4.4, 1.18, eased),
-    lerp(-0.18, -0.08, eased),
+    lerp(-0.36, -0.28, eased),
     lerp(-0.58, -0.35, eased)
   );
   laptopRig.rotation.set(
@@ -886,6 +894,7 @@ function loadLaptopAsset() {
           model.rotation.y = 0;
           model.rotation.x = 0;
           prepareTransparentModel(model);
+          fillLaptopScreenWhite(model);
           laptopRig.add(model);
         },
         undefined,
@@ -922,6 +931,38 @@ function prepareTransparentModel(model) {
       if (material.color) material.color.offsetHSL(0, -0.02, 0.05);
       material.needsUpdate = true;
     });
+  });
+}
+
+function fillLaptopScreenWhite(model) {
+  model.updateWorldMatrix(true, true);
+  const whiteScreen = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    toneMapped: false
+  });
+
+  model.traverse((object) => {
+    if (!object.isMesh || !object.geometry) return;
+
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return;
+
+    const size = box.getSize(new THREE.Vector3());
+    const dims = [size.x, size.y, size.z].sort((a, b) => b - a);
+    const long = dims[0];
+    const short = dims[1];
+    const thin = dims[2];
+    const aspect = long / Math.max(short, 0.001);
+
+    if (long < 1.7 || short < 1.0) return;
+    if (aspect < 1.32 || aspect > 1.7) return;
+    if (thin > 0.12) return;
+
+    object.material = whiteScreen.clone();
+    object.renderOrder = 35;
   });
 }
 
@@ -1247,7 +1288,7 @@ function makeFallbackLaptop() {
     opacity: 0
   });
   const screenMaterial = new THREE.MeshBasicMaterial({
-    color: 0x050807,
+    color: 0xffffff,
     transparent: true,
     opacity: 0,
     depthWrite: false
