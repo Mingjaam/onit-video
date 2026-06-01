@@ -174,11 +174,12 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
-  const iphoneMorph = smoothstep(11.85, 13.45, runTime);
-  const iphoneReveal = smoothstep(13.42, 14.82, runTime);
+  const iphoneMorph = smoothstep(11.85, 13.35, runTime);
+  const iphoneLoaded = smoothstep(13.32, 13.82, runTime);
+  const iphoneReveal = smoothstep(13.9, 15.25, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
-  updatePhone(runTime, iphoneMorph, iphoneReveal, t);
+  updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, iphoneReveal);
 
@@ -519,9 +520,9 @@ function updateCamera(t, runTime) {
   camera.lookAt(cameraTarget);
 }
 
-function updatePhone(runTime, iphoneMorph, iphoneReveal, t) {
-  const presence = Math.max(iphoneMorph, iphoneReveal);
-  phoneRig.visible = presence > 0.01;
+function updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t) {
+  const prepared = Math.max(iphoneMorph, iphoneLoaded, iphoneReveal);
+  phoneRig.visible = prepared > 0.01;
   if (!phoneRig.visible) return;
 
   const settle = easeOutCubic(smoothstep(11.85, 13.15, runTime));
@@ -534,7 +535,7 @@ function updatePhone(runTime, iphoneMorph, iphoneReveal, t) {
   );
   phoneRig.scale.setScalar(lerp(0.76, 0.94, settle));
 
-  const opacity = smoothstep(0.02, 0.38, presence);
+  const opacity = smoothstep(0.08, 0.9, iphoneLoaded);
   phoneRig.traverse((object) => {
     setObjectOpacity(object, opacity);
   });
