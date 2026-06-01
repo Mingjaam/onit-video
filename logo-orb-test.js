@@ -592,8 +592,8 @@ function updateCamera(t, runTime) {
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
   camera.position.y = lerp(camera.position.y, 0.8, reveal);
-  camera.position.z = lerp(9.4, 7.3, reveal);
-  camera.position.z = lerp(camera.position.z, 8.25, macScene);
+  camera.position.z = lerp(9.4, 6.65, reveal);
+  camera.position.z = lerp(camera.position.z, 6.95, macScene);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
@@ -653,7 +653,7 @@ function updateLaptop(runTime) {
   const lineUpScale = lerp(0.78, 0.96, eased);
 
   laptopRig.position.set(
-    lerp(lineUpX, -1.48, macScene),
+    lerp(lineUpX, -1.82, macScene),
     lerp(lineUpY, -0.62, macScene),
     lerp(lineUpZ, -0.44, macScene)
   );
@@ -676,7 +676,7 @@ function updateSecondLaptop(runTime) {
 
   const eased = easeOutCubic(reveal);
   secondLaptopRig.position.set(
-    lerp(4.2, 1.48, eased),
+    lerp(4.2, 1.82, eased),
     lerp(-0.78, -0.62, eased),
     lerp(-0.64, -0.44, eased)
   );
