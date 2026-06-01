@@ -34,9 +34,9 @@ const PHONE_SCREEN_IMAGE_URLS = [
   "./assets/img/IMG_5931.PNG",
   "./assets/img/IMG_5932.PNG"
 ];
-const BALL_MOTION_TIME_SCALE = 0.5;
-const BALL_SIM_FALL_DURATION = 4.95;
-const BALL_SIM_RETURN_END = 6.25;
+const BALL_RETURN_START = 3.85;
+const BALL_RETURN_DURATION = 1.3;
+const BALL_RETURN_END = BALL_RETURN_START + BALL_RETURN_DURATION;
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -265,7 +265,6 @@ function updateBall(t, dropReady, runTime, circleIn, logoMorph) {
 }
 
 function simulateMarble(time, startY, logoMorph) {
-  const motionTime = time / BALL_MOTION_TIME_SCALE;
   const dt = 1 / 120;
   const gravity = new THREE.Vector3(0, -7.35, 0);
   const state = {
@@ -281,14 +280,14 @@ function simulateMarble(time, startY, logoMorph) {
     restTime: 0
   };
 
-  let remaining = Math.min(motionTime, BALL_SIM_FALL_DURATION);
+  let remaining = Math.min(time, BALL_RETURN_START);
   while (remaining > 0) {
     const step = Math.min(dt, remaining);
     stepPhysics(state, step, gravity);
     remaining -= step;
   }
 
-  const lift = smoothstep(BALL_SIM_FALL_DURATION, BALL_SIM_RETURN_END, motionTime);
+  const lift = smoothstep(BALL_RETURN_START, BALL_RETURN_END, time);
   if (lift > 0) {
     const liftedY = lerp(state.position.y, MORPH_START_Y, easeInOutCubic(lift));
     state.position.set(0, liftedY, 0);
