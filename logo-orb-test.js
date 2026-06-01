@@ -30,12 +30,19 @@ const WS_PHONE_VIDEO_URL = "./assets/웹소켓폰.mp4";
 const WS_IPAD_VIDEO_URL = "./assets/웹소켓아이패드2.mp4";
 const WS_MAC_VIDEO_URL = "./assets/웹소켓맥.mp4";
 const VOICE_VIDEO_URL = "./assets/음성.mp4";
-const PRD_VIDEO_URL = "./assets/PRD.mp4";
-const PRD_SKIP_START = 6;
-const PRD_SKIP_END = 137;
+const BACKGROUND_MUSIC_URL = "./assets/MUSIC.mp3";
+const PRD_INTRO_VIDEO_URL = "./assets/PRD_intro.mp4";
+const PRD_TAIL_VIDEO_URL = "./assets/PRD_tail.mp4";
+const PRD_INTRO_DURATION = 6;
+const PRD_TAIL_DURATION = 13.65;
 const WS_SCENE_DURATION = 26.25;
 const VOICE_SCENE_DURATION = 7.1;
-const PRD_SCENE_DURATION = 36.75;
+const PRD_SCENE_DURATION = PRD_INTRO_DURATION + PRD_TAIL_DURATION;
+const BACKGROUND_MUSIC_VOLUME = 0.46;
+const VOICE_DUCKED_MUSIC_VOLUME = BACKGROUND_MUSIC_VOLUME * 0.5;
+const VOICE_VIDEO_VOLUME = 1.0;
+const WS_PHONE_LEAD_TIME = 0.1;
+const WS_MAC_DELAY_TIME = 0.2;
 const PHONE_FADE_START = 11.85;
 const PHONE_FADE_END = 13.35;
 const PHONE_IMAGE_INTERVAL = 0.75;
@@ -118,19 +125,31 @@ const laptopScreenMaterials = [];
 const secondLaptopScreenMaterials = [];
 const ipadScreenMaterials = [];
 const screenVideos = {
-  wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL),
-  wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
-    rotation: Math.PI * 1.5
+  wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL, {
+    startTime: WS_PHONE_LEAD_TIME
   }),
-  wsMac: makeScreenVideo(WS_MAC_VIDEO_URL),
+  wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
+    rotation: Math.PI * 1.5,
+    screenMirrorX: true
+  }),
+  wsMac: makeScreenVideo(WS_MAC_VIDEO_URL, {
+    startDelay: WS_MAC_DELAY_TIME
+  }),
   voice: makeScreenVideo(VOICE_VIDEO_URL),
-  prd: makeScreenVideo(PRD_VIDEO_URL, {
-    skipStart: PRD_SKIP_START,
-    skipEnd: PRD_SKIP_END
-  })
+  prdIntro: makeScreenVideo(PRD_INTRO_VIDEO_URL),
+  prdTail: makeScreenVideo(PRD_TAIL_VIDEO_URL)
 };
+const backgroundMusic = makeBackgroundMusic();
+const voiceAudio = makeVoiceAudio();
 let currentPhoneScreenMapKey = "";
 let currentDeviceScreenStage = "";
+let currentPrdSegment = "";
+let backgroundMusicPlayAttempted = false;
+let backgroundMusicNeedsGesture = false;
+let voiceAudioPlayAttempted = false;
+let voiceAudioNeedsGesture = false;
+let currentRunTime = 0;
+let previousLoopTime = 0;
 let phoneScreenIconLocal = null;
 let phoneScreenIconRadius = 0.09;
 
@@ -256,12 +275,18 @@ let cameraTarget = new THREE.Vector3(0, -0.03, 0);
 let lastImpact = 0;
 
 updateOrbShape(0);
+["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
+  window.addEventListener(eventName, unlockAudioPlayback, { passive: true });
+});
 animate();
 
 function animate() {
   requestAnimationFrame(animate);
 
   const t = clock.getElapsedTime() % LOOP_DURATION;
+  if (t < previousLoopTime - 0.5) resetLoopAudio();
+  previousLoopTime = t;
+  ensureBackgroundMusicStarted();
   progressBar.style.setProperty("--progress", (t / LOOP_DURATION).toFixed(4));
 
   const gather = smoothstep(0.9, 2.85, t);
@@ -269,6 +294,7 @@ function animate() {
   const logoOut = smoothstep(2.45, 3.35, t);
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
+  currentRunTime = runTime;
   const logoMorph = smoothstep(5.65, 10.85, runTime);
   const phoneFade = smoothstep(PHONE_FADE_START, PHONE_FADE_END, runTime);
 
@@ -279,6 +305,8 @@ function animate() {
   updateIpad(runTime);
   updateStageCaption(runTime);
   updateDeviceScreenVideos(runTime);
+  updateDynamicScreenVideoTextures();
+  updateAudioMix(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -803,9 +831,9 @@ function updateDeviceScreenVideos(runTime) {
 
   if (stage === "websocket") {
     setWebsocketScreenMaps("ws-phone-video");
-    playScreenVideo(screenVideos.wsPhone);
+    playScreenVideoAtStageTime(screenVideos.wsPhone, runTime - LINEUP_READY_TIME);
     playScreenVideo(screenVideos.wsIpad);
-    playScreenVideo(screenVideos.wsMac);
+    playScreenVideoAtStageTime(screenVideos.wsMac, runTime - LINEUP_READY_TIME);
     return;
   }
 
@@ -813,12 +841,12 @@ function updateDeviceScreenVideos(runTime) {
     setScreenMaterialsMap(laptopScreenMaterials, screenVideos.voice.texture);
     setScreenMaterialsMap(secondLaptopScreenMaterials, screenVideos.voice.texture);
     playScreenVideo(screenVideos.voice);
+    playVoiceAudio(runTime);
     return;
   }
 
   if (stage === "prd") {
-    setScreenMaterialsMap(laptopScreenMaterials, screenVideos.prd.texture);
-    playScreenVideo(screenVideos.prd);
+    updatePrdScreenVideo(runTime);
   }
 }
 
@@ -830,9 +858,16 @@ function getDeviceScreenStage(runTime) {
   return "intro";
 }
 
+function updateAudioMix(runTime) {
+  const stage = getDeviceScreenStage(runTime);
+  backgroundMusic.volume = stage === "voice" ? VOICE_DUCKED_MUSIC_VOLUME : BACKGROUND_MUSIC_VOLUME;
+  voiceAudio.volume = VOICE_VIDEO_VOLUME;
+}
+
 function resetVideosForStage(stage) {
   if (stage === "intro") {
     pauseAndResetAllScreenVideos();
+    stopVoiceAudio();
     return;
   }
 
@@ -840,8 +875,26 @@ function resetVideosForStage(stage) {
     "websocket-hold": [screenVideos.wsPhone, screenVideos.wsIpad, screenVideos.wsMac],
     websocket: [screenVideos.wsPhone, screenVideos.wsIpad, screenVideos.wsMac],
     voice: [screenVideos.voice],
-    prd: [screenVideos.prd]
+    prd: [screenVideos.prdIntro, screenVideos.prdTail]
   };
+  const activeVideos = new Set(videosByStage[stage] || []);
+
+  if (stage !== "voice") stopVoiceAudio();
+
+  Object.values(screenVideos).forEach((screenVideo) => {
+    if (activeVideos.has(screenVideo)) return;
+    screenVideo.video.pause();
+    resetScreenVideo(screenVideo);
+  });
+
+  if (stage === "prd") {
+    currentPrdSegment = "";
+    videosByStage.prd.forEach((screenVideo) => {
+      screenVideo.video.pause();
+      resetScreenVideo(screenVideo);
+    });
+    return;
+  }
 
   (videosByStage[stage] || []).forEach((screenVideo) => {
     resetScreenVideo(screenVideo);
@@ -851,6 +904,22 @@ function resetVideosForStage(stage) {
       playScreenVideo(screenVideo);
     }
   });
+}
+
+function updatePrdScreenVideo(runTime) {
+  const prdElapsed = Math.max(0, runTime - PRD_SCENE_START);
+  const nextSegment = prdElapsed >= PRD_INTRO_DURATION ? "tail" : "intro";
+  const activeVideo = nextSegment === "tail" ? screenVideos.prdTail : screenVideos.prdIntro;
+  const inactiveVideo = nextSegment === "tail" ? screenVideos.prdIntro : screenVideos.prdTail;
+
+  if (nextSegment !== currentPrdSegment) {
+    currentPrdSegment = nextSegment;
+    resetScreenVideo(activeVideo);
+    inactiveVideo.video.pause();
+  }
+
+  setScreenMaterialsMap(laptopScreenMaterials, activeVideo.texture);
+  playScreenVideo(activeVideo);
 }
 
 function setWebsocketScreenMaps(key) {
@@ -1218,7 +1287,8 @@ function fillLaptopScreenWhite(model, targetMaterials = laptopScreenMaterials) {
     targetMaterials.push(material);
     fitTextureToUvBounds(screenVideos.wsMac.texture, object.geometry);
     fitTextureToUvBounds(screenVideos.voice.texture, object.geometry);
-    fitTextureToUvBounds(screenVideos.prd.texture, object.geometry);
+    fitTextureToUvBounds(screenVideos.prdIntro.texture, object.geometry);
+    fitTextureToUvBounds(screenVideos.prdTail.texture, object.geometry);
     found = true;
   });
 
@@ -1369,7 +1439,8 @@ function loadPhoneScreenTextures() {
 function makeScreenVideo(url, options = {}) {
   const video = document.createElement("video");
   video.src = url;
-  video.muted = true;
+  video.muted = options.muted !== false;
+  video.volume = Number.isFinite(options.volume) ? options.volume : 0;
   video.loop = options.loop === true;
   video.playsInline = true;
   video.preload = "auto";
@@ -1383,12 +1454,19 @@ function makeScreenVideo(url, options = {}) {
     });
   }
 
-  const texture = new THREE.VideoTexture(video);
+  const mirroredVideo = options.screenMirrorX
+    ? makeScreenMirroredVideoTexture(video, options)
+    : null;
+  const texture = mirroredVideo?.texture || new THREE.VideoTexture(video);
   configureScreenVideoTexture(texture);
   if (Number.isFinite(options.rotation)) rotateScreenTexture(texture, options.rotation);
   const screenVideo = {
     video,
-    texture
+    texture,
+    updateTexture: mirroredVideo?.updateTexture,
+    startTime: options.startTime || 0,
+    startDelay: options.startDelay || 0,
+    stagePlayStarted: false
   };
   video.addEventListener("loadeddata", () => {
     holdScreenVideoFirstFrame(screenVideo);
@@ -1396,6 +1474,114 @@ function makeScreenVideo(url, options = {}) {
   video.load();
 
   return screenVideo;
+}
+
+function makeBackgroundMusic() {
+  const audio = new Audio(BACKGROUND_MUSIC_URL);
+  audio.loop = false;
+  audio.preload = "auto";
+  audio.volume = BACKGROUND_MUSIC_VOLUME;
+  return audio;
+}
+
+function makeVoiceAudio() {
+  const audio = new Audio(VOICE_VIDEO_URL);
+  audio.loop = false;
+  audio.preload = "auto";
+  audio.volume = VOICE_VIDEO_VOLUME;
+  return audio;
+}
+
+function ensureBackgroundMusicStarted(force = false) {
+  if (backgroundMusicPlayAttempted || !backgroundMusic.paused) return;
+  if (backgroundMusicNeedsGesture && !force) return;
+  backgroundMusicPlayAttempted = true;
+  playMediaElement(backgroundMusic, () => {
+    backgroundMusicPlayAttempted = false;
+    backgroundMusicNeedsGesture = true;
+  });
+}
+
+function unlockAudioPlayback() {
+  backgroundMusicNeedsGesture = false;
+  ensureBackgroundMusicStarted(true);
+  if (getDeviceScreenStage(currentRunTime) === "voice") {
+    voiceAudioNeedsGesture = false;
+    playVoiceAudio(currentRunTime, true);
+  }
+}
+
+function playVoiceAudio(runTime, force = false) {
+  if (voiceAudioPlayAttempted && !voiceAudio.paused) return;
+  if (voiceAudioNeedsGesture && !force) return;
+
+  const voiceElapsed = Math.max(0, runTime - VOICE_VIDEO_START);
+  try {
+    voiceAudio.currentTime = Math.min(voiceElapsed, VOICE_SCENE_DURATION);
+  } catch {
+    // Browser may reject seeks before metadata is ready; audio still starts once playable.
+  }
+
+  voiceAudioPlayAttempted = true;
+  playMediaElement(voiceAudio, () => {
+    voiceAudioPlayAttempted = false;
+    voiceAudioNeedsGesture = true;
+  });
+}
+
+function stopVoiceAudio() {
+  voiceAudio.pause();
+  voiceAudioPlayAttempted = false;
+  voiceAudioNeedsGesture = false;
+  try {
+    voiceAudio.currentTime = 0;
+  } catch {
+    // Ignore early metadata seek failures.
+  }
+}
+
+function resetLoopAudio() {
+  backgroundMusic.pause();
+  backgroundMusicPlayAttempted = false;
+  try {
+    backgroundMusic.currentTime = 0;
+  } catch {
+    // Ignore early metadata seek failures.
+  }
+  stopVoiceAudio();
+}
+
+function playMediaElement(media, onBlocked) {
+  const playPromise = media.play();
+  if (playPromise?.catch) {
+    playPromise.catch(onBlocked);
+  }
+}
+
+function makeScreenMirroredVideoTexture(video, options) {
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d");
+  canvas.width = 2;
+  canvas.height = 2;
+
+  const texture = new THREE.CanvasTexture(canvas);
+  const updateTexture = () => {
+    if (!video.videoWidth || !video.videoHeight || video.readyState < 2) return;
+    if (canvas.width !== video.videoWidth || canvas.height !== video.videoHeight) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+    }
+
+    ctx.save();
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.translate(canvas.width, 0);
+    ctx.scale(-1, 1);
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    ctx.restore();
+    texture.needsUpdate = true;
+  };
+
+  return { texture, updateTexture };
 }
 
 function configureScreenVideoTexture(texture) {
@@ -1417,8 +1603,9 @@ function rotateScreenTexture(texture, rotation) {
 }
 
 function resetScreenVideo(screenVideo) {
+  screenVideo.stagePlayStarted = false;
   try {
-    screenVideo.video.currentTime = 0;
+    screenVideo.video.currentTime = screenVideo.startTime || 0;
   } catch {
     // Some browsers reject seeks before metadata is ready; playback still starts normally.
   }
@@ -1429,7 +1616,16 @@ function holdScreenVideoFirstFrame(screenVideo) {
   if (screenVideo.video.readyState >= 1 && Math.abs(screenVideo.video.currentTime) > 0.04) {
     resetScreenVideo(screenVideo);
   }
+  updateScreenVideoTexture(screenVideo);
   screenVideo.texture.needsUpdate = true;
+}
+
+function updateDynamicScreenVideoTextures() {
+  Object.values(screenVideos).forEach(updateScreenVideoTexture);
+}
+
+function updateScreenVideoTexture(screenVideo) {
+  if (screenVideo.updateTexture) screenVideo.updateTexture();
 }
 
 function pauseAndResetAllScreenVideos() {
@@ -1442,6 +1638,24 @@ function pauseAndResetAllScreenVideos() {
 function playScreenVideo(screenVideo) {
   const playPromise = screenVideo.video.play();
   if (playPromise?.catch) playPromise.catch(() => {});
+}
+
+function playScreenVideoAtStageTime(screenVideo, stageElapsed) {
+  if (stageElapsed < screenVideo.startDelay) {
+    holdScreenVideoFirstFrame(screenVideo);
+    return;
+  }
+
+  if (!screenVideo.stagePlayStarted) {
+    screenVideo.stagePlayStarted = true;
+    try {
+      screenVideo.video.currentTime = screenVideo.startTime || 0;
+    } catch {
+      // If metadata is not ready, play() will start from the current browser-managed position.
+    }
+  }
+
+  playScreenVideo(screenVideo);
 }
 
 function makePhoneIntroScreenTexture() {
