@@ -24,6 +24,7 @@ const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
 const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
+const MACBOOK_ASSET_URL = "./assets/macbook_pro_14_inch_M5.glb";
 const PHONE_FADE_START = 11.85;
 const PHONE_FADE_END = 13.35;
 const PHONE_IMAGE_INTERVAL = 0.75;
@@ -34,6 +35,8 @@ const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
 const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
 const PHONE_SPIN_DURATION = 2.05;
 const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.48;
+const LAPTOP_SLIDE_START = PHONE_CURSOR_CLICK_TIME + 0.06;
+const LAPTOP_SLIDE_DURATION = 1.65;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -145,6 +148,11 @@ phoneRig.visible = false;
 scene.add(phoneRig);
 loadPhoneAsset();
 
+const laptopRig = new THREE.Group();
+laptopRig.visible = false;
+scene.add(laptopRig);
+loadLaptopAsset();
+
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -212,6 +220,7 @@ function animate() {
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, phoneFade, t);
+  updateLaptop(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -574,21 +583,46 @@ function updatePhone(runTime, phoneFade, t) {
   const baseX = lerp(0.08, 0, settle);
   const baseY = lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade;
   const baseZ = lerp(-0.02, 0, settle);
+  const baseScale = lerp(0.86, 1.08, settle);
 
-  phoneRig.position.set(0, 0, -0.2);
-  phoneRig.position.x += spinLift * 0.22;
-  phoneRig.position.y += spinLift * 0.24;
-  phoneRig.position.z += spinLift * 0.58;
-  phoneRig.rotation.set(
-    baseX - spinLift * 0.3,
-    baseY + spinProgress * Math.PI * 2,
-    baseZ - spinLift * 0.16
+  phoneRig.position.set(
+    lerp(0, -1.62, spinProgress),
+    spinLift * 0.2,
+    lerp(-0.2, -0.08, spinProgress) + spinLift * 0.44
   );
-  phoneRig.scale.setScalar(lerp(0.86, 1.08, settle) + spinLift * 0.22);
+  phoneRig.rotation.set(
+    baseX - spinLift * 0.22,
+    baseY - spinProgress * Math.PI * 2,
+    baseZ + spinLift * 0.18
+  );
+  phoneRig.scale.setScalar(baseScale * lerp(1, 0.74, spinProgress) + spinLift * 0.13);
 
   const opacity = smoothstep(0.08, 0.9, phoneFade);
   phoneRig.traverse((object) => {
     setObjectOpacity(object, opacity);
+  });
+}
+
+function updateLaptop(runTime) {
+  const slide = smoothstep(LAPTOP_SLIDE_START, LAPTOP_SLIDE_START + LAPTOP_SLIDE_DURATION, runTime);
+  laptopRig.visible = slide > 0.001;
+  if (!laptopRig.visible) return;
+
+  const eased = easeOutCubic(slide);
+  laptopRig.position.set(
+    lerp(4.4, 1.18, eased),
+    lerp(-0.18, -0.08, eased),
+    lerp(-0.58, -0.35, eased)
+  );
+  laptopRig.rotation.set(
+    lerp(0.08, -0.02, eased),
+    lerp(-0.34, -0.08, eased),
+    lerp(0.04, 0, eased)
+  );
+  laptopRig.scale.setScalar(lerp(0.86, 1.05, eased));
+
+  laptopRig.traverse((object) => {
+    setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
   });
 }
 
@@ -837,6 +871,31 @@ function loadPhoneAsset() {
     })
     .catch(() => {
       addFallbackPhone();
+    });
+}
+
+function loadLaptopAsset() {
+  import("three/addons/loaders/GLTFLoader.js")
+    .then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        MACBOOK_ASSET_URL,
+        (gltf) => {
+          const model = gltf.scene;
+          normalizeModel(model, 3.35);
+          model.rotation.y = 0;
+          model.rotation.x = 0;
+          prepareTransparentModel(model);
+          laptopRig.add(model);
+        },
+        undefined,
+        () => {
+          addFallbackLaptop();
+        }
+      );
+    })
+    .catch(() => {
+      addFallbackLaptop();
     });
 }
 
@@ -1136,6 +1195,11 @@ function addFallbackPhone() {
   phoneRig.add(fallback);
 }
 
+function addFallbackLaptop() {
+  const fallback = makeFallbackLaptop();
+  laptopRig.add(fallback);
+}
+
 function makeFallbackPhone() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
@@ -1167,6 +1231,42 @@ function makeFallbackPhone() {
   screen.position.z = 0.045;
   group.add(screen);
   phoneScreenMaterials.push(fallbackScreenMaterial);
+
+  return group;
+}
+
+function makeFallbackLaptop() {
+  const group = new THREE.Group();
+  const baseMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x1b211f,
+    roughness: 0.34,
+    metalness: 0.42,
+    clearcoat: 0.28,
+    clearcoatRoughness: 0.24,
+    transparent: true,
+    opacity: 0
+  });
+  const screenMaterial = new THREE.MeshBasicMaterial({
+    color: 0x050807,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(2.45, 1.52, 0.06), baseMaterial.clone());
+  screen.position.set(0, 0.52, -0.08);
+  screen.rotation.x = -0.1;
+  group.add(screen);
+
+  const display = new THREE.Mesh(new THREE.PlaneGeometry(2.18, 1.24), screenMaterial);
+  display.position.set(0, 0.53, -0.045);
+  display.rotation.x = -0.1;
+  group.add(display);
+
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(2.65, 0.08, 1.55), baseMaterial.clone());
+  deck.position.set(0, -0.36, 0.52);
+  deck.rotation.x = 0.13;
+  group.add(deck);
 
   return group;
 }
