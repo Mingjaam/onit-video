@@ -25,6 +25,7 @@ const RED = 0xd94435;
 const METAL = 0xb8bab7;
 const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
 const MACBOOK_ASSET_URL = "./assets/macbook_pro_14_inch_M5.glb";
+const IPAD_ASSET_URL = "./assets/apple_ipad_pro.glb?v=ipad-centered-v2";
 const PHONE_FADE_START = 11.85;
 const PHONE_FADE_END = 13.35;
 const PHONE_IMAGE_INTERVAL = 0.75;
@@ -37,6 +38,8 @@ const PHONE_SPIN_DURATION = 3.0;
 const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.5;
 const LAPTOP_SLIDE_START = PHONE_CURSOR_CLICK_TIME + 0.06;
 const LAPTOP_SLIDE_DURATION = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION - LAPTOP_SLIDE_START;
+const IPAD_SLIDE_START = LAPTOP_SLIDE_START;
+const IPAD_SLIDE_DURATION = LAPTOP_SLIDE_DURATION;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -153,6 +156,12 @@ laptopRig.visible = false;
 scene.add(laptopRig);
 loadLaptopAsset();
 
+const ipadRig = new THREE.Group();
+ipadRig.visible = false;
+scene.add(ipadRig);
+let ipadAssetLoaded = false;
+loadIpadAsset();
+
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -221,6 +230,7 @@ function animate() {
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, phoneFade, t);
   updateLaptop(runTime);
+  updateIpad(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -582,26 +592,19 @@ function updatePhone(runTime, phoneFade, t) {
   const firstFlip = easeInOutCubic(smoothstep(0, 0.46, flipRaw));
   const secondFlip = easeInOutCubic(smoothstep(0.54, 1, flipRaw));
   const flipAmount = firstFlip + secondFlip;
-  const moveProgress = easeInOutCubic(flipRaw);
+  const lineUpProgress = easeInOutCubic(flipRaw);
   const flipAngle = -Math.PI * flipAmount;
   const flipLift = Math.max(Math.sin(firstFlip * Math.PI), Math.sin(secondFlip * Math.PI));
   const baseX = lerp(0.08, 0, settle);
   const baseY = lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade;
   const baseZ = lerp(-0.02, 0, settle);
-  const scale = (lerp(0.86, 1.08, settle) * lerp(1, 0.74, moveProgress)) + flipLift * 0.13;
-  const hingeHalfWidth = 0.52 * scale;
-  const hingeOffsetX = hingeHalfWidth * (Math.cos(flipAngle) - 1);
-  const hingeOffsetZ = -hingeHalfWidth * Math.sin(flipAngle);
+  const scale = (lerp(0.86, 1.08, settle) * lerp(1, 0.74, lineUpProgress)) + flipLift * 0.08;
 
-  phoneRig.position.set(
-    lerp(0, -1.62, moveProgress) + hingeOffsetX,
-    flipLift * 0.2,
-    lerp(-0.2, -0.08, moveProgress) + flipLift * 0.44 + hingeOffsetZ
-  );
+  phoneRig.position.set(0, 0, -0.2);
   phoneRig.rotation.set(
-    baseX - flipLift * 0.22,
+    baseX - flipLift * 0.12,
     baseY + flipAngle,
-    baseZ + flipLift * 0.18
+    baseZ + flipLift * 0.08
   );
   phoneRig.scale.setScalar(scale);
 
@@ -618,18 +621,41 @@ function updateLaptop(runTime) {
 
   const eased = easeOutCubic(slide);
   laptopRig.position.set(
-    lerp(4.4, 1.18, eased),
-    lerp(-0.68, -0.56, eased),
-    lerp(-0.58, -0.35, eased)
+    lerp(4.5, 1.95, eased),
+    lerp(-0.78, -0.62, eased),
+    lerp(-0.62, -0.42, eased)
   );
   laptopRig.rotation.set(
     lerp(0.08, -0.02, eased),
-    lerp(-0.34, -0.08, eased),
+    lerp(-0.34, -0.1, eased),
     lerp(0.04, 0, eased)
   );
-  laptopRig.scale.setScalar(lerp(0.86, 1.05, eased));
+  laptopRig.scale.setScalar(lerp(0.66, 0.78, eased));
 
   laptopRig.traverse((object) => {
+    setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
+  });
+}
+
+function updateIpad(runTime) {
+  const slide = smoothstep(IPAD_SLIDE_START, IPAD_SLIDE_START + IPAD_SLIDE_DURATION, runTime);
+  ipadRig.visible = slide > 0.001;
+  if (!ipadRig.visible) return;
+
+  const eased = easeOutCubic(slide);
+  ipadRig.position.set(
+    lerp(-4.2, -1.75, eased),
+    lerp(-0.42, -0.24, eased),
+    lerp(-0.62, -0.36, eased)
+  );
+  ipadRig.rotation.set(
+    lerp(0.06, 0.02, eased),
+    lerp(0.34, 0.08, eased),
+    lerp(-0.035, 0, eased)
+  );
+  ipadRig.scale.setScalar(lerp(0.76, 0.92, eased));
+
+  ipadRig.traverse((object) => {
     setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
   });
 }
@@ -908,13 +934,48 @@ function loadLaptopAsset() {
     });
 }
 
+function loadIpadAsset() {
+  import("three/addons/loaders/GLTFLoader.js")
+    .then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      const fallbackTimer = window.setTimeout(() => {
+        if (!ipadAssetLoaded && ipadRig.children.length === 0) addFallbackIpad();
+      }, 1800);
+      loader.load(
+        IPAD_ASSET_URL,
+        (gltf) => {
+          window.clearTimeout(fallbackTimer);
+          ipadAssetLoaded = true;
+          ipadRig.clear();
+          const model = gltf.scene;
+          normalizeModel(model, 2.35);
+          model.rotation.y = 0;
+          model.rotation.x = 0;
+          prepareTransparentModel(model);
+          fillIpadScreenWhite(model);
+          orientIpadForCamera(model);
+          ipadRig.add(model);
+        },
+        undefined,
+        () => {
+          window.clearTimeout(fallbackTimer);
+          addFallbackIpad();
+        }
+      );
+    })
+    .catch(() => {
+      addFallbackIpad();
+    });
+}
+
 function normalizeModel(model, targetSize) {
+  model.updateWorldMatrix(true, true);
   const box = new THREE.Box3().setFromObject(model);
   const size = box.getSize(new THREE.Vector3());
   const center = box.getCenter(new THREE.Vector3());
   const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
-  model.position.sub(center);
   model.scale.setScalar(scale);
+  model.position.set(-center.x * scale, -center.y * scale, -center.z * scale);
 }
 
 function prepareTransparentModel(model) {
@@ -940,6 +1001,7 @@ function fillLaptopScreenWhite(model) {
     transparent: true,
     opacity: 0,
     depthWrite: false,
+    side: THREE.DoubleSide,
     toneMapped: false
   });
 
@@ -960,6 +1022,61 @@ function fillLaptopScreenWhite(model) {
     object.material = whiteScreen.clone();
     object.renderOrder = 35;
   });
+}
+
+function fillIpadScreenWhite(model) {
+  const whiteScreen = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    toneMapped: false
+  });
+
+  let found = false;
+  model.traverse((object) => {
+    if (!object.isMesh || object.name !== "iPad Pro 2020_screen_0") return;
+
+    object.material = whiteScreen.clone();
+    object.renderOrder = 34;
+    found = true;
+  });
+
+  if (found) return;
+
+  model.traverse((object) => {
+    if (!object.isMesh || !/screen|display|lcd/i.test(object.name || "")) return;
+    object.material = whiteScreen.clone();
+    object.renderOrder = 34;
+  });
+}
+
+function orientIpadForCamera(model) {
+  const screen = model.getObjectByName("iPad Pro 2020_screen_0") || model;
+  const rotations = [0, Math.PI / 2, -Math.PI / 2, Math.PI];
+  const size = new THREE.Vector3();
+  let bestRotation = 0;
+  let bestScore = -Infinity;
+
+  rotations.forEach((rotationX) => {
+    model.rotation.x = rotationX;
+    model.updateWorldMatrix(true, true);
+
+    const box = new THREE.Box3().setFromObject(screen);
+    if (box.isEmpty()) return;
+
+    box.getSize(size);
+    const visibleArea = size.x * size.y;
+    const edgePenalty = size.z * 0.08;
+    const score = visibleArea - edgePenalty;
+    if (score > bestScore) {
+      bestScore = score;
+      bestRotation = rotationX;
+    }
+  });
+
+  model.rotation.x = bestRotation;
 }
 
 function replacePhoneScreenMaterial(model) {
@@ -1237,6 +1354,11 @@ function addFallbackLaptop() {
   laptopRig.add(fallback);
 }
 
+function addFallbackIpad() {
+  const fallback = makeFallbackIpad();
+  ipadRig.add(fallback);
+}
+
 function makeFallbackPhone() {
   const group = new THREE.Group();
   const body = new THREE.Mesh(
@@ -1304,6 +1426,36 @@ function makeFallbackLaptop() {
   deck.position.set(0, -0.36, 0.52);
   deck.rotation.x = 0.13;
   group.add(deck);
+
+  return group;
+}
+
+function makeFallbackIpad() {
+  const group = new THREE.Group();
+  const bodyMaterial = new THREE.MeshPhysicalMaterial({
+    color: 0x141817,
+    roughness: 0.34,
+    metalness: 0.36,
+    clearcoat: 0.24,
+    clearcoatRoughness: 0.2,
+    transparent: true,
+    opacity: 0
+  });
+  const screenMaterial = new THREE.MeshBasicMaterial({
+    color: 0xffffff,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false
+  });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.78, 0.06), bodyMaterial);
+  body.castShadow = true;
+  group.add(body);
+
+  const display = new THREE.Mesh(new THREE.PlaneGeometry(1.19, 1.58), screenMaterial);
+  display.position.z = 0.034;
+  display.renderOrder = 34;
+  group.add(display);
 
   return group;
 }
