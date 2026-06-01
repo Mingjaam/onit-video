@@ -7,6 +7,7 @@ const clayCircle = document.querySelector(".clay-circle");
 const orbPath = document.getElementById("orbPath");
 const orbShadow = document.querySelector(".orb-shadow");
 const orbRipple = document.querySelector(".orb-ripple");
+const stageCaption = document.querySelector(".stage-caption");
 
 const SPHERE_RADIUS = 0.38;
 const ROLL_SCALE = 0.9;
@@ -17,7 +18,7 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 22.8;
+const LOOP_DURATION = 31.2;
 const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
@@ -41,6 +42,15 @@ const LAPTOP_SLIDE_DURATION = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION - LA
 const IPAD_SLIDE_START = LAPTOP_SLIDE_START;
 const IPAD_SLIDE_DURATION = LAPTOP_SLIDE_DURATION;
 const IPAD_LANDSCAPE_ROTATION = Math.PI / 2;
+const LINEUP_READY_TIME = LAPTOP_SLIDE_START + LAPTOP_SLIDE_DURATION;
+const DEVICE_CAPTION_TEXT = "Mobile Application Published";
+const DEVICE_CAPTION_START = LINEUP_READY_TIME + 0.45;
+const DEVICE_CAPTION_INTERVAL = 0.055;
+const DEVICE_CAPTION_END = DEVICE_CAPTION_START + (DEVICE_CAPTION_TEXT.length * DEVICE_CAPTION_INTERVAL);
+const MACBOOK_SCENE_START = DEVICE_CAPTION_END + 0.25;
+const DEVICE_SCENE_TRANSITION_DURATION = 1.25;
+const SECOND_MACBOOK_REVEAL_START = MACBOOK_SCENE_START + 0.1;
+const SECOND_MACBOOK_REVEAL_DURATION = 1.2;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -155,7 +165,12 @@ loadPhoneAsset();
 const laptopRig = new THREE.Group();
 laptopRig.visible = false;
 scene.add(laptopRig);
-loadLaptopAsset();
+loadLaptopAsset(laptopRig);
+
+const secondLaptopRig = new THREE.Group();
+secondLaptopRig.visible = false;
+scene.add(secondLaptopRig);
+loadLaptopAsset(secondLaptopRig);
 
 const ipadRig = new THREE.Group();
 ipadRig.visible = false;
@@ -231,7 +246,9 @@ function animate() {
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, phoneFade, t);
   updateLaptop(runTime);
+  updateSecondLaptop(runTime);
   updateIpad(runTime);
+  updateStageCaption(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
@@ -570,20 +587,25 @@ function projectToScreen(worldPosition) {
 function updateCamera(t, runTime) {
   const ball = sphereGroup.position;
   const reveal = smoothstep(5.95, 7.55, runTime);
+  const macScene = getMacbookSceneProgress(runTime);
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
   camera.position.y = lerp(camera.position.y, 0.8, reveal);
   camera.position.z = lerp(9.4, 7.3, reveal);
+  camera.position.z = lerp(camera.position.z, 8.25, macScene);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
   cameraTarget.z = lerp(cameraTarget.z, -1.25, reveal);
+  cameraTarget.y = lerp(cameraTarget.y, -0.48, macScene);
+  cameraTarget.z = lerp(cameraTarget.z, -1.1, macScene);
   camera.lookAt(cameraTarget);
 }
 
 function updatePhone(runTime, phoneFade, t) {
-  phoneRig.visible = phoneFade > 0.01;
+  const deviceExit = getMacbookSceneProgress(runTime);
+  phoneRig.visible = phoneFade > 0.01 && deviceExit < 0.995;
   if (!phoneRig.visible) return;
 
   updatePhoneScreenSequence(runTime);
@@ -609,7 +631,7 @@ function updatePhone(runTime, phoneFade, t) {
   );
   phoneRig.scale.setScalar(scale);
 
-  const opacity = smoothstep(0.08, 0.9, phoneFade);
+  const opacity = smoothstep(0.08, 0.9, phoneFade) * (1 - deviceExit);
   phoneRig.traverse((object) => {
     setObjectOpacity(object, opacity);
   });
@@ -621,26 +643,59 @@ function updateLaptop(runTime) {
   if (!laptopRig.visible) return;
 
   const eased = easeOutCubic(slide);
+  const macScene = easeInOutCubic(getMacbookSceneProgress(runTime));
+  const lineUpX = lerp(4.8, 2.24, eased);
+  const lineUpY = lerp(-0.82, -0.66, eased);
+  const lineUpZ = lerp(-0.64, -0.44, eased);
+  const lineUpRotX = lerp(0.08, -0.02, eased);
+  const lineUpRotY = lerp(-0.34, -0.1, eased);
+  const lineUpRotZ = lerp(0.04, 0, eased);
+  const lineUpScale = lerp(0.78, 0.96, eased);
+
   laptopRig.position.set(
-    lerp(4.8, 2.24, eased),
-    lerp(-0.82, -0.66, eased),
-    lerp(-0.64, -0.44, eased)
+    lerp(lineUpX, -1.48, macScene),
+    lerp(lineUpY, -0.62, macScene),
+    lerp(lineUpZ, -0.44, macScene)
   );
   laptopRig.rotation.set(
-    lerp(0.08, -0.02, eased),
-    lerp(-0.34, -0.1, eased),
-    lerp(0.04, 0, eased)
+    lerp(lineUpRotX, -0.02, macScene),
+    lerp(lineUpRotY, 0.08, macScene),
+    lerp(lineUpRotZ, 0, macScene)
   );
-  laptopRig.scale.setScalar(lerp(0.78, 0.96, eased));
+  laptopRig.scale.setScalar(lerp(lineUpScale, 0.88, macScene));
 
   laptopRig.traverse((object) => {
     setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
   });
 }
 
+function updateSecondLaptop(runTime) {
+  const reveal = smoothstep(SECOND_MACBOOK_REVEAL_START, SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION, runTime);
+  secondLaptopRig.visible = reveal > 0.001;
+  if (!secondLaptopRig.visible) return;
+
+  const eased = easeOutCubic(reveal);
+  secondLaptopRig.position.set(
+    lerp(4.2, 1.48, eased),
+    lerp(-0.78, -0.62, eased),
+    lerp(-0.64, -0.44, eased)
+  );
+  secondLaptopRig.rotation.set(
+    lerp(0.08, -0.02, eased),
+    lerp(-0.28, -0.08, eased),
+    lerp(0.03, 0, eased)
+  );
+  secondLaptopRig.scale.setScalar(lerp(0.76, 0.88, eased));
+
+  secondLaptopRig.traverse((object) => {
+    setObjectOpacity(object, smoothstep(0.02, 0.85, reveal));
+  });
+}
+
 function updateIpad(runTime) {
   const slide = smoothstep(IPAD_SLIDE_START, IPAD_SLIDE_START + IPAD_SLIDE_DURATION, runTime);
-  ipadRig.visible = slide > 0.001;
+  const deviceExit = getMacbookSceneProgress(runTime);
+  ipadRig.visible = slide > 0.001 && deviceExit < 0.995;
   if (!ipadRig.visible) return;
 
   const eased = easeOutCubic(slide);
@@ -657,8 +712,29 @@ function updateIpad(runTime) {
   ipadRig.scale.setScalar(lerp(0.76, 0.92, eased));
 
   ipadRig.traverse((object) => {
-    setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
+    setObjectOpacity(object, smoothstep(0.02, 0.82, slide) * (1 - deviceExit));
   });
+}
+
+function updateStageCaption(runTime) {
+  if (!stageCaption) return;
+
+  const enter = smoothstep(DEVICE_CAPTION_START - 0.18, DEVICE_CAPTION_START + 0.12, runTime);
+  const exit = getMacbookSceneProgress(runTime);
+  const visibleChars = Math.max(0, Math.min(
+    DEVICE_CAPTION_TEXT.length,
+    Math.floor((runTime - DEVICE_CAPTION_START) / DEVICE_CAPTION_INTERVAL)
+  ));
+  const isTyping = visibleChars < DEVICE_CAPTION_TEXT.length && runTime >= DEVICE_CAPTION_START;
+  const showCursor = isTyping && Math.floor(runTime * 8) % 2 === 0;
+
+  stageCaption.textContent = DEVICE_CAPTION_TEXT.slice(0, visibleChars) + (showCursor ? "|" : "");
+  stageCaption.style.opacity = (enter * (1 - exit)).toFixed(3);
+  stageCaption.style.transform = `translate(-50%, ${lerp(10, 0, enter)}px)`;
+}
+
+function getMacbookSceneProgress(runTime) {
+  return smoothstep(MACBOOK_SCENE_START, MACBOOK_SCENE_START + DEVICE_SCENE_TRANSITION_DURATION, runTime);
 }
 
 function updateOrbShape(progress, phoneShapeProgress = 0) {
@@ -909,7 +985,7 @@ function loadPhoneAsset() {
     });
 }
 
-function loadLaptopAsset() {
+function loadLaptopAsset(targetRig = laptopRig) {
   import("three/addons/loaders/GLTFLoader.js")
     .then(({ GLTFLoader }) => {
       const loader = new GLTFLoader();
@@ -922,16 +998,16 @@ function loadLaptopAsset() {
           model.rotation.x = 0;
           prepareTransparentModel(model);
           fillLaptopScreenWhite(model);
-          laptopRig.add(model);
+          targetRig.add(model);
         },
         undefined,
         () => {
-          addFallbackLaptop();
+          addFallbackLaptop(targetRig);
         }
       );
     })
     .catch(() => {
-      addFallbackLaptop();
+      addFallbackLaptop(targetRig);
     });
 }
 
@@ -1350,9 +1426,9 @@ function addFallbackPhone() {
   phoneRig.add(fallback);
 }
 
-function addFallbackLaptop() {
+function addFallbackLaptop(targetRig = laptopRig) {
   const fallback = makeFallbackLaptop();
-  laptopRig.add(fallback);
+  targetRig.add(fallback);
 }
 
 function addFallbackIpad() {

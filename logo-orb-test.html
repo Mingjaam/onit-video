@@ -126,6 +126,28 @@
       border-radius: inherit;
     }
 
+    .stage-caption {
+      position: fixed;
+      left: 50%;
+      bottom: 92px;
+      z-index: 3;
+      width: min(860px, calc(100vw - 80px));
+      color: rgba(240, 255, 244, 0.94);
+      font-size: clamp(22px, 3vw, 42px);
+      font-weight: 760;
+      letter-spacing: 0;
+      line-height: 1.1;
+      text-align: center;
+      text-shadow:
+        0 14px 36px rgba(0, 0, 0, 0.55),
+        0 0 22px rgba(8, 201, 35, 0.24);
+      opacity: 0;
+      transform: translate(-50%, 10px);
+      transition: opacity 120ms linear;
+      white-space: nowrap;
+      pointer-events: none;
+    }
+
     svg {
       position: fixed;
       width: 0;
@@ -172,6 +194,7 @@
     <path id="orbPath" fill="url(#orbGradient)" fill-rule="evenodd"></path>
   </svg>
   <div class="brand">ON-IT</div>
+  <div class="stage-caption" aria-hidden="true"></div>
   <div class="progress"></div>
 
   <script type="importmap">
@@ -182,6 +205,6 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=macbook-x-224"></script>
+  <script type="module" src="./logo-orb-test.js?v=typed-published-dual-mac"></script>
 </body>
 </html>
