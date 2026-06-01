@@ -17,7 +17,8 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 14.8;
+const LOOP_DURATION = 16.6;
+const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
@@ -146,6 +147,7 @@ const letterLayout = [
 const circleShape = makeCircleLogoShape();
 const frameShape = makeRoundedFrameShape();
 const logoShape = makeOnitLogoShape();
+const iphoneShape = makeIphoneShape();
 const clock = new THREE.Clock();
 let lastIntroY = 0.44;
 let cameraTarget = new THREE.Vector3(0, -0.03, 0);
@@ -166,15 +168,16 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
+  const iphoneMorph = smoothstep(11.85, 13.45, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updateCamera(t, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut, logoMorph);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut, logoMorph) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -200,8 +203,8 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph) {
   });
 
   const circleOpacity = circleIn;
-  updateOrbShape(logoMorph);
-  syncClayCircleToSphere();
+  updateOrbShape(logoMorph, iphoneMorph);
+  syncClayCircleToSphere(iphoneMorph);
   clayCircle.style.opacity = circleOpacity.toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
@@ -402,7 +405,7 @@ function railTangentAtDistance(rail, s) {
   return rail.curve.getTangentAt(Math.max(0, Math.min(1, s / rail.length))).normalize();
 }
 
-function syncClayCircleToSphere() {
+function syncClayCircleToSphere(iphoneMorph = 0) {
   sphereGroup.updateWorldMatrix(true, false);
 
   const center = new THREE.Vector3(0, 0, 0);
@@ -416,14 +419,19 @@ function syncClayCircleToSphere() {
   const floorPx = projectToScreen(floor);
   const radiusPx = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
   const diameter = Math.max(1, radiusPx * 2);
+  const phoneEase = easeInOutCubic(iphoneMorph);
+  const phoneWidth = diameter * 0.72;
+  const phoneHeight = phoneWidth * IPHONE_ASPECT_RATIO;
+  const visualWidth = lerp(diameter, phoneWidth, phoneEase);
+  const visualHeight = lerp(diameter, phoneHeight, phoneEase);
   const bottomY = centerPx.y + radiusPx;
   const floorDistance = Math.max(0, Math.min(1, Math.abs(floorPx.y - bottomY) / Math.max(1, diameter * 2.2)));
   const contact = 1 - floorDistance;
 
   clayCircle.style.left = `${centerPx.x.toFixed(2)}px`;
   clayCircle.style.top = `${centerPx.y.toFixed(2)}px`;
-  clayCircle.style.width = `${diameter.toFixed(2)}px`;
-  clayCircle.style.height = `${diameter.toFixed(2)}px`;
+  clayCircle.style.width = `${visualWidth.toFixed(2)}px`;
+  clayCircle.style.height = `${visualHeight.toFixed(2)}px`;
 
   orbShadow.style.left = `${floorPx.x.toFixed(2)}px`;
   orbShadow.style.top = `${floorPx.y.toFixed(2)}px`;
@@ -463,13 +471,16 @@ function updateCamera(t, runTime) {
   camera.lookAt(cameraTarget);
 }
 
-function updateOrbShape(progress) {
+function updateOrbShape(progress, iphoneMorph = 0) {
   const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
   const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
   const holeProgress = easeInOutCubic(smoothstep(0.18, 0.9, progress));
   const outerFrame = interpolatePoints(circleShape.outer, frameShape.outer, frameProgress);
-  const outer = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
-  const inner = interpolatePoints(circleShape.inner, logoShape.inner, holeProgress);
+  const logoOuter = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
+  const logoInner = interpolatePoints(circleShape.inner, logoShape.inner, holeProgress);
+  const phoneProgress = easeInOutCubic(iphoneMorph);
+  const outer = interpolatePoints(logoOuter, iphoneShape.outer, phoneProgress);
+  const inner = interpolatePoints(logoInner, iphoneShape.inner, phoneProgress);
   orbPath.setAttribute("d", `${pointsToPath(outer)} ${pointsToPath(inner)}`);
 }
 
@@ -494,6 +505,26 @@ function makeRoundedFrameShape() {
 
 function makeOnitLogoShape() {
   return makeLogoShapeVariant(1);
+}
+
+function makeIphoneShape() {
+  const left = 20;
+  const right = 80;
+  const top = 2;
+  const bottom = 98;
+  const radius = 14;
+  const outer = sampleSegments([
+    ["cubic", { x: left + radius, y: top }, { x: left + 5, y: top }, { x: left, y: top + 5 }, { x: left, y: top + radius }, 11],
+    ["line", { x: left, y: top + radius }, { x: left, y: bottom - radius }, 17],
+    ["cubic", { x: left, y: bottom - radius }, { x: left, y: bottom - 5 }, { x: left + 5, y: bottom }, { x: left + radius, y: bottom }, 11],
+    ["line", { x: left + radius, y: bottom }, { x: right - radius, y: bottom }, 8],
+    ["cubic", { x: right - radius, y: bottom }, { x: right - 5, y: bottom }, { x: right, y: bottom - 5 }, { x: right, y: bottom - radius }, 11],
+    ["line", { x: right, y: bottom - radius }, { x: right, y: top + radius }, 17],
+    ["cubic", { x: right, y: top + radius }, { x: right, y: top + 5 }, { x: right - 5, y: top }, { x: right - radius, y: top }, 11],
+    ["line", { x: right - radius, y: top }, { x: left + radius, y: top }, 2]
+  ]);
+  const inner = outer.map(() => ({ x: 50, y: 50 }));
+  return { outer, inner };
 }
 
 function makeLogoShapeVariant(fold) {
