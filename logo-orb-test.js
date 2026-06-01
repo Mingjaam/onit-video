@@ -4,7 +4,6 @@ const container = document.getElementById("stage");
 const progressBar = document.querySelector(".progress");
 const letters = [...document.querySelectorAll(".clay-letter")];
 const clayCircle = document.querySelector(".clay-circle");
-const phoneMask = document.querySelector(".phone-mask");
 const orbPath = document.getElementById("orbPath");
 const orbShadow = document.querySelector(".orb-shadow");
 const orbRipple = document.querySelector(".orb-ripple");
@@ -112,7 +111,6 @@ scene.add(roomGroup);
 const phoneRig = new THREE.Group();
 phoneRig.visible = false;
 scene.add(phoneRig);
-const phoneProjectionSamples = [];
 loadPhoneAsset();
 
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
@@ -176,19 +174,17 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
-  const iphoneMorph = smoothstep(11.85, 13.55, runTime);
-  const iphoneLoaded = smoothstep(13.82, 14.22, runTime);
-  const iphoneReveal = smoothstep(14.38, 15.9, runTime);
+  const phoneFade = smoothstep(11.85, 13.35, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
-  updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t);
+  updatePhone(runTime, phoneFade, t);
   updateCamera(t, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, iphoneReveal);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, iphoneReveal) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -215,10 +211,9 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, ip
 
   const circleOpacity = circleIn;
   updateOrbShape(logoMorph, 0);
-  syncClayCircleToSphere();
-  clayCircle.style.opacity = (circleOpacity * (1 - smoothstep(0.02, 0.22, iphoneMorph))).toFixed(3);
+  syncClayCircleToSphere(phoneFade);
+  clayCircle.style.opacity = (circleOpacity * (1 - phoneFade)).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
-  syncPhoneMask(iphoneMorph, iphoneReveal);
 }
 
 function updateBall(t, dropReady, runTime, circleIn, logoMorph) {
@@ -417,7 +412,7 @@ function railTangentAtDistance(rail, s) {
   return rail.curve.getTangentAt(Math.max(0, Math.min(1, s / rail.length))).normalize();
 }
 
-function syncClayCircleToSphere() {
+function syncClayCircleToSphere(centerOverride = 0) {
   sphereGroup.updateWorldMatrix(true, false);
 
   const center = new THREE.Vector3(0, 0, 0);
@@ -431,12 +426,14 @@ function syncClayCircleToSphere() {
   const floorPx = projectToScreen(floor);
   const radiusPx = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
   const diameter = Math.max(1, radiusPx * 2);
+  const displayX = lerp(centerPx.x, window.innerWidth / 2, centerOverride);
+  const displayY = lerp(centerPx.y, window.innerHeight / 2, centerOverride);
   const bottomY = centerPx.y + radiusPx;
   const floorDistance = Math.max(0, Math.min(1, Math.abs(floorPx.y - bottomY) / Math.max(1, diameter * 2.2)));
   const contact = 1 - floorDistance;
 
-  clayCircle.style.left = `${centerPx.x.toFixed(2)}px`;
-  clayCircle.style.top = `${centerPx.y.toFixed(2)}px`;
+  clayCircle.style.left = `${displayX.toFixed(2)}px`;
+  clayCircle.style.top = `${displayY.toFixed(2)}px`;
   clayCircle.style.width = `${diameter.toFixed(2)}px`;
   clayCircle.style.height = `${diameter.toFixed(2)}px`;
   clayCircle.style.clipPath = "none";
@@ -454,71 +451,6 @@ function syncClayCircleToSphere() {
   orbRipple.style.width = `${rippleSize.toFixed(2)}px`;
   orbRipple.style.height = `${(rippleSize * 0.36).toFixed(2)}px`;
   orbRipple.style.opacity = "0";
-}
-
-function syncPhoneMask(iphoneMorph, iphoneReveal) {
-  phoneRig.updateWorldMatrix(true, true);
-
-  const center = new THREE.Vector3(0, 0, 0);
-  const edge = new THREE.Vector3(SPHERE_RADIUS, 0, 0);
-  sphereGroup.localToWorld(center);
-  sphereGroup.localToWorld(edge);
-
-  const centerPx = projectToScreen(center);
-  const edgePx = projectToScreen(edge);
-  const diameter = Math.max(1, Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y) * 2);
-  const fallbackPhoneWidth = diameter * 1.18;
-  const fallbackPhoneHeight = fallbackPhoneWidth * IPHONE_ASPECT_RATIO;
-  const phoneRect = getProjectedPhoneRect() || {
-    x: centerPx.x,
-    y: centerPx.y,
-    width: fallbackPhoneWidth,
-    height: fallbackPhoneHeight
-  };
-  const grow = easeInOutCubic(iphoneMorph);
-  const maskX = lerp(centerPx.x, phoneRect.x, grow);
-  const maskY = lerp(centerPx.y, phoneRect.y, grow);
-  const maskWidth = lerp(diameter, phoneRect.width, grow);
-  const maskHeight = lerp(diameter, phoneRect.height, grow);
-  const radius = lerp(maskWidth * 0.5, Math.min(maskWidth, maskHeight) * 0.12, grow);
-
-  phoneMask.style.left = `${maskX.toFixed(2)}px`;
-  phoneMask.style.top = `${maskY.toFixed(2)}px`;
-  phoneMask.style.width = `${maskWidth.toFixed(2)}px`;
-  phoneMask.style.height = `${maskHeight.toFixed(2)}px`;
-  phoneMask.style.borderRadius = `${radius.toFixed(2)}px`;
-  phoneMask.style.opacity = (iphoneMorph * (1 - smoothstep(0.98, 1, iphoneReveal))).toFixed(3);
-  phoneMask.style.clipPath = `inset(${(iphoneReveal * 100).toFixed(2)}% 0 0 0 round ${radius.toFixed(2)}px)`;
-}
-
-function getProjectedPhoneRect() {
-  if (!phoneRig.visible || phoneProjectionSamples.length === 0) return null;
-
-  const projected = [];
-  phoneRig.updateWorldMatrix(true, true);
-  phoneProjectionSamples.forEach((sample) => {
-    const worldPoint = sample.object.localToWorld(sample.point.clone());
-    const ndc = worldPoint.clone().project(camera);
-    if (ndc.z < -1 || ndc.z > 1) return;
-    projected.push({
-      x: (ndc.x * 0.5 + 0.5) * window.innerWidth,
-      y: (-ndc.y * 0.5 + 0.5) * window.innerHeight
-    });
-  });
-
-  if (projected.length === 0) return null;
-
-  const minX = Math.min(...projected.map((point) => point.x));
-  const maxX = Math.max(...projected.map((point) => point.x));
-  const minY = Math.min(...projected.map((point) => point.y));
-  const maxY = Math.max(...projected.map((point) => point.y));
-
-  return {
-    x: (minX + maxX) / 2,
-    y: (minY + maxY) / 2,
-    width: Math.max(1, maxX - minX),
-    height: Math.max(1, maxY - minY)
-  };
 }
 
 function projectToScreen(worldPosition) {
@@ -544,35 +476,33 @@ function updateCamera(t, runTime) {
   camera.lookAt(cameraTarget);
 }
 
-function updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t) {
-  const prepared = Math.max(iphoneMorph, iphoneLoaded, iphoneReveal);
-  phoneRig.visible = prepared > 0.01;
+function updatePhone(runTime, phoneFade, t) {
+  phoneRig.visible = phoneFade > 0.01;
   if (!phoneRig.visible) return;
 
-  const settle = easeOutCubic(smoothstep(11.85, 13.15, runTime));
-  phoneRig.position.copy(sphereGroup.position);
-  phoneRig.position.z = -0.04;
+  const settle = easeOutCubic(phoneFade);
+  phoneRig.position.set(0, 0, -0.2);
   phoneRig.rotation.set(
     lerp(0.08, 0, settle),
-    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * prepared,
+    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade,
     lerp(-0.02, 0, settle)
   );
-  phoneRig.scale.setScalar(lerp(0.86, 1.14, settle));
+  phoneRig.scale.setScalar(lerp(0.86, 1.08, settle));
 
-  const opacity = smoothstep(0.08, 0.9, iphoneLoaded);
+  const opacity = smoothstep(0.08, 0.9, phoneFade);
   phoneRig.traverse((object) => {
     setObjectOpacity(object, opacity);
   });
 }
 
-function updateOrbShape(progress, iphoneMorph = 0) {
+function updateOrbShape(progress, phoneShapeProgress = 0) {
   const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
   const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
   const holeProgress = easeInOutCubic(smoothstep(0.18, 0.9, progress));
   const outerFrame = interpolatePoints(circleShape.outer, frameShape.outer, frameProgress);
   const logoOuter = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
   const logoInner = interpolatePoints(circleShape.inner, logoShape.inner, holeProgress);
-  const phoneProgress = easeInOutCubic(iphoneMorph);
+  const phoneProgress = easeInOutCubic(phoneShapeProgress);
   const outer = interpolatePoints(logoOuter, iphoneShape.outer, phoneProgress);
   const inner = interpolatePoints(logoInner, iphoneShape.inner, phoneProgress);
   orbPath.setAttribute("d", `${pointsToPath(outer)} ${pointsToPath(inner)}`);
@@ -799,7 +729,6 @@ function loadPhoneAsset() {
           normalizeModel(model, 2.68);
           model.rotation.y = Math.PI;
           prepareTransparentModel(model);
-          cachePhoneProjectionSamples(model);
           phoneRig.add(model);
         },
         undefined,
@@ -839,34 +768,9 @@ function prepareTransparentModel(model) {
   });
 }
 
-function cachePhoneProjectionSamples(model) {
-  phoneProjectionSamples.length = 0;
-
-  model.updateWorldMatrix(true, true);
-  const meshes = [];
-  model.traverse((object) => {
-    if (!object.isMesh || !object.geometry?.attributes?.position) return;
-    meshes.push(object);
-  });
-
-  const totalVertices = meshes.reduce((sum, object) => sum + object.geometry.attributes.position.count, 0);
-  const stride = Math.max(1, Math.ceil(totalVertices / 1800));
-
-  meshes.forEach((object) => {
-    const position = object.geometry.attributes.position;
-    for (let i = 0; i < position.count; i += stride) {
-      phoneProjectionSamples.push({
-        object,
-        point: new THREE.Vector3().fromBufferAttribute(position, i)
-      });
-    }
-  });
-}
-
 function addFallbackPhone() {
   const fallback = makeFallbackPhone();
   phoneRig.add(fallback);
-  cachePhoneProjectionSamples(fallback);
 }
 
 function makeFallbackPhone() {
