@@ -120,7 +120,7 @@ const ipadScreenMaterials = [];
 const screenVideos = {
   wsPhone: makeScreenVideo(WS_PHONE_VIDEO_URL),
   wsIpad: makeScreenVideo(WS_IPAD_VIDEO_URL, {
-    rotation: Math.PI / 2
+    rotation: Math.PI * 1.5
   }),
   wsMac: makeScreenVideo(WS_MAC_VIDEO_URL),
   voice: makeScreenVideo(VOICE_VIDEO_URL),
