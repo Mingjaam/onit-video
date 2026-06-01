@@ -50,16 +50,16 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.toneMapping = THREE.ACESFilmicToneMapping;
-renderer.toneMappingExposure = 1.08;
+renderer.toneMappingExposure = 1.32;
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
-const hemi = new THREE.HemisphereLight(0xb9ffd0, 0x050807, 0.42);
+const hemi = new THREE.HemisphereLight(0xeaffef, 0x172018, 0.74);
 scene.add(hemi);
 
-const key = new THREE.DirectionalLight(0xdfffe6, 3.2);
-key.position.set(-4.8, 6.8, 5.4);
+const key = new THREE.DirectionalLight(0xf4fff7, 4.65);
+key.position.set(-4.2, 6.4, 5.8);
 key.castShadow = true;
 key.shadow.mapSize.set(2048, 2048);
 key.shadow.camera.near = 0.1;
@@ -72,13 +72,26 @@ key.shadow.radius = 7;
 key.shadow.bias = -0.00008;
 scene.add(key);
 
-const soft = new THREE.PointLight(0x0fd238, 2.2, 12, 2);
-soft.position.set(3.8, 1.8, 3.2);
+const soft = new THREE.PointLight(0xcfffe0, 3.0, 13, 2);
+soft.position.set(3.9, 2.2, 3.8);
 scene.add(soft);
 
-const rim = new THREE.PointLight(0x74ff8a, 1.4, 11, 2);
-rim.position.set(-3.4, -1.8, 2.1);
+const rim = new THREE.PointLight(0x8effb4, 2.25, 12, 2);
+rim.position.set(-3.6, -1.2, 2.7);
 scene.add(rim);
+
+const macbookLightTarget = new THREE.Object3D();
+macbookLightTarget.position.set(0, -1.02, -1.35);
+scene.add(macbookLightTarget);
+
+const macbookKey = new THREE.SpotLight(0xffffff, 0, 9, Math.PI / 4.8, 0.72, 1.25);
+macbookKey.position.set(0.45, 1.15, 2.8);
+macbookKey.target = macbookLightTarget;
+scene.add(macbookKey);
+
+const macbookRim = new THREE.PointLight(0x9eefff, 0, 6, 2);
+macbookRim.position.set(-1.85, -0.45, -0.35);
+scene.add(macbookRim);
 
 const trackGroup = new THREE.Group();
 trackGroup.visible = true;
@@ -479,6 +492,12 @@ function updateMacbook(runTime, logoMorph, t) {
   macbookRig.position.set(0, lerp(-2.55, -1.02, e), -1.35);
   macbookRig.rotation.set(lerp(0.18, -0.02, e), Math.sin(t * 0.32) * 0.04, 0);
   macbookRig.scale.setScalar(lerp(0.84, 1.18, e));
+  macbookLightTarget.position.copy(macbookRig.position);
+  macbookLightTarget.position.y += 0.12;
+  macbookKey.position.set(macbookRig.position.x + 0.45, macbookRig.position.y + 2.1, macbookRig.position.z + 4.15);
+  macbookKey.intensity = lerp(0, 5.2, e);
+  macbookRim.position.set(macbookRig.position.x - 2.05, macbookRig.position.y + 0.28, macbookRig.position.z + 0.65);
+  macbookRim.intensity = lerp(0, 2.9, e);
 
   macbookRig.traverse((object) => {
     setObjectOpacity(object, Math.min(1, e));
@@ -699,6 +718,9 @@ function loadMacbookAsset() {
             materials.forEach((material) => {
               material.transparent = true;
               material.opacity = 0;
+              material.envMapIntensity = Math.max(material.envMapIntensity || 0, 1.35);
+              if (material.color) material.color.offsetHSL(0, -0.04, 0.08);
+              if (material.emissive) material.emissive.set(0x020402);
               material.needsUpdate = true;
             });
           });
