@@ -113,6 +113,18 @@ phoneRig.visible = false;
 scene.add(phoneRig);
 loadPhoneAsset();
 
+const phoneScreenMaterial = new THREE.MeshBasicMaterial({
+  map: makeProjectListScreenTexture(),
+  transparent: true,
+  opacity: 0,
+  depthTest: false,
+  depthWrite: false
+});
+const phoneScreenPlane = new THREE.Mesh(new THREE.PlaneGeometry(1.04, 2.24), phoneScreenMaterial);
+phoneScreenPlane.position.set(0, 0, 0.074);
+phoneScreenPlane.renderOrder = 20;
+phoneRig.add(phoneScreenPlane);
+
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -927,6 +939,149 @@ function makeMarkTexture(label) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
+}
+
+function makeProjectListScreenTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 946;
+  canvas.height = 2048;
+  const ctx = canvas.getContext("2d");
+
+  ctx.fillStyle = "#f3f4f8";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  ctx.fillStyle = "#000000";
+  ctx.font = "700 44px Arial, sans-serif";
+  ctx.fillText("3:05", 106, 96);
+  ctx.font = "700 34px Arial, sans-serif";
+  ctx.fillText("LTE", 733, 94);
+  roundRect(ctx, 800, 60, 58, 34, 10, "#63cf62");
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 28px Arial, sans-serif";
+  ctx.fillText("67", 807, 86);
+
+  circleButton(ctx, 88, 198, 52, "#58d143", "↻");
+  circleButton(ctx, 854, 198, 52, "#58d143", "+");
+
+  ctx.fillStyle = "#08090b";
+  ctx.font = "900 72px Arial, sans-serif";
+  ctx.fillText("프로젝트", 38, 352);
+
+  pill(ctx, 38, 416, 128, 74, "#59d13e", "#ffffff", "전체");
+  pill(ctx, 184, 416, 224, 74, "#ffffff", "#08090b", "내 프로젝트");
+  pill(ctx, 430, 416, 158, 74, "#ffffff", "#08090b", "공유됨");
+
+  roundRect(ctx, 38, 516, 868, 98, 22, "#ffffff");
+  ctx.strokeStyle = "#8d8f96";
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.arc(83, 565, 16, 0, Math.PI * 2);
+  ctx.moveTo(96, 578);
+  ctx.lineTo(118, 600);
+  ctx.stroke();
+  ctx.fillStyle = "#b9bbc2";
+  ctx.font = "700 36px Arial, sans-serif";
+  ctx.fillText("프로젝트 검색", 132, 578);
+
+  const items = [
+    ["오", "오늘의 아이디어", "김민재", "3명"],
+    ["N", "new", "김민재", "6명"],
+    ["프", "프로젝트 시연", "김수빈", "6명"],
+    ["현", "현우", "김민재", "2명"],
+    ["김", "김민재", "김민재", "1명"]
+  ];
+  items.forEach((item, index) => {
+    const y = 642 + index * 225;
+    roundRect(ctx, 38, y, 814, 206, 26, "#ffffff");
+    roundRect(ctx, 70, y + 34, 140, 140, 20, "#65cf8b");
+    ctx.fillStyle = "#ffffff";
+    ctx.font = "900 54px Arial, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText(item[0], 140, y + 120);
+    ctx.textAlign = "left";
+    ctx.fillStyle = "#050609";
+    ctx.font = "800 40px Arial, sans-serif";
+    ctx.fillText(item[1], 250, y + 96);
+    ctx.fillStyle = "#8a8c92";
+    ctx.font = "700 26px Arial, sans-serif";
+    ctx.fillText(`◉   ${item[2]}   ♧   ${item[3]}`, 260, y + 138);
+    ctx.strokeStyle = "#8f9197";
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    starPath(ctx, 787, y + 103, 29, 13);
+    ctx.stroke();
+    ctx.strokeStyle = "#bfc1c7";
+    ctx.lineWidth = 8;
+    ctx.beginPath();
+    ctx.moveTo(884, y + 91);
+    ctx.lineTo(898, y + 103);
+    ctx.lineTo(884, y + 115);
+    ctx.stroke();
+  });
+
+  roundRect(ctx, 250, 1854, 444, 142, 68, "#ffffff");
+  roundRect(ctx, 260, 1864, 222, 122, 60, "#dedee1");
+  ctx.fillStyle = "#4dcc36";
+  ctx.font = "900 58px Arial, sans-serif";
+  ctx.fillText("▰", 338, 1934);
+  ctx.font = "800 24px Arial, sans-serif";
+  ctx.fillText("프로젝트", 330, 1970);
+  ctx.fillStyle = "#050609";
+  ctx.font = "900 58px Arial, sans-serif";
+  ctx.fillText("⚙", 548, 1934);
+  ctx.font = "800 24px Arial, sans-serif";
+  ctx.fillText("설정", 552, 1970);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 4;
+  return texture;
+}
+
+function roundRect(ctx, x, y, width, height, radius, fill) {
+  const r = Math.min(radius, width / 2, height / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.arcTo(x + width, y, x + width, y + height, r);
+  ctx.arcTo(x + width, y + height, x, y + height, r);
+  ctx.arcTo(x, y + height, x, y, r);
+  ctx.arcTo(x, y, x + width, y, r);
+  ctx.closePath();
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function pill(ctx, x, y, width, height, fill, color, text) {
+  roundRect(ctx, x, y, width, height, height / 2, fill);
+  ctx.fillStyle = color;
+  ctx.font = "800 34px Arial, sans-serif";
+  ctx.fillText(text, x + 34, y + 49);
+}
+
+function circleButton(ctx, x, y, radius, color, text) {
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = color;
+  ctx.font = "800 64px Arial, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, x, y - 1);
+  ctx.textAlign = "left";
+  ctx.textBaseline = "alphabetic";
+}
+
+function starPath(ctx, cx, cy, outer, inner) {
+  for (let i = 0; i < 10; i++) {
+    const angle = -Math.PI / 2 + (i * Math.PI) / 5;
+    const radius = i % 2 === 0 ? outer : inner;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.closePath();
 }
 
 function responsiveUnit() {
