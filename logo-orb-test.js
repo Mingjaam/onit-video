@@ -16,6 +16,10 @@ const endingCards = {
 };
 const endingType = document.querySelector(".ending-type");
 const endingLogoPaths = [...document.querySelectorAll(".ending-logo-path")];
+const endingFinal = document.querySelector(".ending-final");
+const endingFinalPath = document.querySelector(".ending-final-path");
+const endingFinalBrand = document.querySelector(".ending-final-brand");
+const startOverlay = document.querySelector(".start-overlay");
 
 const SPHERE_RADIUS = 0.38;
 const ROLL_SCALE = 0.9;
@@ -67,33 +71,44 @@ const IPAD_SLIDE_START = LAPTOP_SLIDE_START;
 const IPAD_SLIDE_DURATION = LAPTOP_SLIDE_DURATION;
 const IPAD_LANDSCAPE_ROTATION = Math.PI / 2;
 const LINEUP_READY_TIME = LAPTOP_SLIDE_START + LAPTOP_SLIDE_DURATION;
-const DEVICE_CAPTION_TEXT = "Mobile Application Published";
+const DEVICE_CAPTION_TEXT = "";
 const DEVICE_CAPTION_START = LINEUP_READY_TIME + 0.45;
 const DEVICE_CAPTION_INTERVAL = 0.055;
 const DEVICE_CAPTION_END = DEVICE_CAPTION_START + (DEVICE_CAPTION_TEXT.length * DEVICE_CAPTION_INTERVAL);
 const MACBOOK_SCENE_START = LINEUP_READY_TIME + WS_SCENE_DURATION + 0.35;
 const DEVICE_SCENE_TRANSITION_DURATION = 1.25;
-const SECOND_MACBOOK_REVEAL_START = MACBOOK_SCENE_START + 0.1;
+const SECOND_MACBOOK_REVEAL_START = MACBOOK_SCENE_START + DEVICE_SCENE_TRANSITION_DURATION + 0.15;
 const SECOND_MACBOOK_REVEAL_DURATION = 1.2;
 const VOICE_VIDEO_START = SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION;
 const PRD_SCENE_START = VOICE_VIDEO_START + VOICE_SCENE_DURATION + 0.35;
 const PRD_SCENE_TRANSITION_DURATION = 1.35;
 const ENDING_TEXT = "모든 플랫폼에서, 편하게, 설계까지.";
 const ENDING_TEXT_INTERVAL = 0.075;
+const ENDING_FINAL_BRAND = "ON-IT";
+const ENDING_FINAL_BRAND_INTERVAL = 0.16;
 const ENDING_START = PRD_SCENE_START + PRD_SCENE_DURATION + 0.15;
 const ENDING_DEVICE_EXIT_DURATION = 1.05;
-const ENDING_LOGO_START = ENDING_START + 0.2;
-const ENDING_LOGO_DURATION = 1.0;
-const ENDING_SPLIT_START = ENDING_LOGO_START + 0.8;
-const ENDING_SPLIT_DURATION = 1.15;
-const ENDING_QR_START = ENDING_SPLIT_START + 0.68;
-const ENDING_QR_DURATION = 1.08;
+const ENDING_LOGO_START = ENDING_START + 0.35;
+const ENDING_LOGO_DURATION = 1.55;
+const ENDING_SPLIT_START = ENDING_LOGO_START + ENDING_LOGO_DURATION + 0.32;
+const ENDING_SPLIT_DURATION = 2.0;
+const ENDING_SPLIT_SETTLE_DURATION = 0.45;
+const ENDING_QR_START = ENDING_SPLIT_START + ENDING_SPLIT_DURATION + ENDING_SPLIT_SETTLE_DURATION;
+const ENDING_QR_DURATION = 1.65;
 const ENDING_TEXT_START = ENDING_QR_START + 0.75;
-const ENDING_HOLD_DURATION = 5.0;
-const ENDING_END = ENDING_TEXT_START + (ENDING_TEXT.length * ENDING_TEXT_INTERVAL) + ENDING_HOLD_DURATION;
+const ENDING_QR_HOLD_DURATION = 4.0;
+const ENDING_REJOIN_START = ENDING_QR_START + ENDING_QR_DURATION + ENDING_QR_HOLD_DURATION;
+const ENDING_REJOIN_DURATION = 1.75;
+const ENDING_FINAL_LOGO_START = ENDING_REJOIN_START + ENDING_REJOIN_DURATION;
+const ENDING_FINAL_LOGO_DURATION = 5.2;
+const ENDING_FINAL_BRAND_START = ENDING_FINAL_LOGO_START + ENDING_FINAL_LOGO_DURATION + 0.2;
+const ENDING_FINAL_HOLD_DURATION = 4.0;
+const ENDING_END = ENDING_FINAL_BRAND_START + (ENDING_FINAL_BRAND.length * ENDING_FINAL_BRAND_INTERVAL) + ENDING_FINAL_HOLD_DURATION;
 const LOOP_DURATION = 3.35 + ENDING_END + 0.55;
 const APP_STORE_URL = "https://apps.apple.com/kr/app/on-it/id6758333783";
 const WEBSITE_URL = "https://on-it.kro.kr/";
+const QR_DARK_COLOR = "#08c923";
+const QR_LIGHT_COLOR = "#050807";
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -174,6 +189,8 @@ let voiceAudioPlayAttempted = false;
 let voiceAudioNeedsGesture = false;
 let currentRunTime = 0;
 let previousLoopTime = 0;
+let experienceStarted = false;
+let playbackStartTime = 0;
 let phoneScreenIconLocal = null;
 let phoneScreenIconRadius = 0.09;
 
@@ -201,6 +218,30 @@ scene.add(soft);
 const rim = new THREE.PointLight(0x8effb4, 2.25, 12, 2);
 rim.position.set(-3.6, -1.2, 2.7);
 scene.add(rim);
+
+const baseLightLevels = [
+  [hemi, hemi.intensity],
+  [key, key.intensity],
+  [soft, soft.intensity],
+  [rim, rim.intensity]
+];
+const voiceSpotlights = [
+  makeVoiceSpotlight(),
+  makeVoiceSpotlight()
+];
+voiceSpotlights.forEach((light) => {
+  scene.add(light);
+  scene.add(light.target);
+});
+const voiceSpotlightState = {
+  activeTarget: -1,
+  activeStart: 0,
+  activeUntil: 0,
+  count: 0,
+  readyAt: 0,
+  lastElapsed: -1,
+  seenSignal: false
+};
 
 const trackGroup = new THREE.Group();
 trackGroup.visible = true;
@@ -301,17 +342,18 @@ let lastImpact = 0;
 
 updateOrbShape(0);
 ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
-  window.addEventListener(eventName, unlockAudioPlayback, { passive: true });
+  window.addEventListener(eventName, handleStartInput, { passive: true });
 });
 animate();
 
 function animate() {
   requestAnimationFrame(animate);
 
-  const t = clock.getElapsedTime() % LOOP_DURATION;
-  if (t < previousLoopTime - 0.5) resetLoopAudio();
+  const elapsed = experienceStarted ? (performance.now() / 1000) - playbackStartTime : 0;
+  const t = elapsed % LOOP_DURATION;
+  if (experienceStarted && t < previousLoopTime - 0.5) resetLoopAudio();
   previousLoopTime = t;
-  ensureBackgroundMusicStarted();
+  if (experienceStarted) ensureBackgroundMusicStarted();
   progressBar.style.setProperty("--progress", (t / LOOP_DURATION).toFixed(4));
 
   const gather = smoothstep(0.9, 2.85, t);
@@ -328,6 +370,7 @@ function animate() {
   updateLaptop(runTime);
   updateSecondLaptop(runTime);
   updateIpad(runTime);
+  updateVoiceSpotlights(runTime);
   updateStageCaption(runTime);
   updateDeviceScreenVideos(runTime);
   updateDynamicScreenVideoTextures();
@@ -337,6 +380,19 @@ function animate() {
   updateEndingScene(runTime);
 
   renderer.render(scene, camera);
+}
+
+function handleStartInput() {
+  if (!experienceStarted) {
+    experienceStarted = true;
+    playbackStartTime = performance.now() / 1000;
+    previousLoopTime = 0;
+    currentDeviceScreenStage = "";
+    resetLoopAudio();
+    startOverlay?.classList.add("is-hidden");
+  }
+
+  unlockAudioPlayback();
 }
 
 function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime) {
@@ -822,6 +878,11 @@ function updateIpad(runTime) {
 
 function updateStageCaption(runTime) {
   if (!stageCaption) return;
+  if (!DEVICE_CAPTION_TEXT) {
+    stageCaption.textContent = "";
+    stageCaption.style.opacity = "0";
+    return;
+  }
 
   const enter = smoothstep(DEVICE_CAPTION_START - 0.18, DEVICE_CAPTION_START + 0.12, runTime);
   const exit = getMacbookSceneProgress(runTime);
@@ -895,6 +956,94 @@ function updateAudioMix(runTime) {
   const stage = getDeviceScreenStage(runTime);
   backgroundMusic.volume = stage === "voice" ? VOICE_DUCKED_MUSIC_VOLUME : BACKGROUND_MUSIC_VOLUME;
   setVoiceAudioVolume(VOICE_VIDEO_VOLUME);
+}
+
+function updateVoiceSpotlights(runTime) {
+  const stage = getDeviceScreenStage(runTime);
+  if (stage !== "voice") {
+    resetVoiceSpotlightState();
+    applyVoiceLighting(0, -1);
+    return;
+  }
+
+  const voiceElapsed = Math.max(0, runTime - VOICE_VIDEO_START);
+  if (voiceElapsed < voiceSpotlightState.lastElapsed) resetVoiceSpotlightState();
+  voiceSpotlightState.lastElapsed = voiceElapsed;
+
+  const level = readVoiceAudioLevel();
+  const detectedVoice = level > 0.018;
+  if (detectedVoice) voiceSpotlightState.seenSignal = true;
+
+  const fallbackTimes = [0.45, 1.95, 3.55, 5.1];
+  const fallbackDue = voiceSpotlightState.count < fallbackTimes.length &&
+    voiceElapsed >= fallbackTimes[voiceSpotlightState.count];
+
+  if ((detectedVoice || fallbackDue) &&
+    voiceSpotlightState.count < 4 &&
+    voiceElapsed >= voiceSpotlightState.readyAt) {
+    voiceSpotlightState.activeTarget = voiceSpotlightState.count % 2;
+    voiceSpotlightState.activeStart = voiceElapsed;
+    voiceSpotlightState.activeUntil = VOICE_SCENE_DURATION;
+    voiceSpotlightState.readyAt = voiceElapsed + 1.2;
+    voiceSpotlightState.count += 1;
+  }
+
+  const hasActiveSpotlight = voiceSpotlightState.activeTarget >= 0 && voiceElapsed < VOICE_SCENE_DURATION;
+  const switchFade = smoothstep(0, 0.18, voiceElapsed - voiceSpotlightState.activeStart);
+  const strength = hasActiveSpotlight ? switchFade : 0;
+  applyVoiceLighting(strength, voiceSpotlightState.activeTarget);
+}
+
+function resetVoiceSpotlightState() {
+  voiceSpotlightState.activeTarget = -1;
+  voiceSpotlightState.activeStart = 0;
+  voiceSpotlightState.activeUntil = 0;
+  voiceSpotlightState.count = 0;
+  voiceSpotlightState.readyAt = 0;
+  voiceSpotlightState.lastElapsed = -1;
+  voiceSpotlightState.seenSignal = false;
+}
+
+function readVoiceAudioLevel() {
+  if (!voiceAudioGain?.analyser || !voiceAudioGain?.timeData) return 0;
+
+  voiceAudioGain.analyser.getByteTimeDomainData(voiceAudioGain.timeData);
+  let sum = 0;
+  for (const value of voiceAudioGain.timeData) {
+    const centered = (value - 128) / 128;
+    sum += centered * centered;
+  }
+  return Math.sqrt(sum / voiceAudioGain.timeData.length);
+}
+
+function applyVoiceLighting(strength, activeTarget) {
+  const baseScale = 1 - strength;
+  baseLightLevels.forEach(([light, base]) => {
+    light.intensity = base * baseScale;
+  });
+
+  updateVoiceSpotlightPose(voiceSpotlights[0], laptopRig);
+  updateVoiceSpotlightPose(voiceSpotlights[1], secondLaptopRig);
+  voiceSpotlights.forEach((light, index) => {
+    light.intensity = index === activeTarget ? 22 * strength : 0;
+  });
+}
+
+function updateVoiceSpotlightPose(light, rig) {
+  if (!light || !rig) return;
+
+  const center = new THREE.Vector3();
+  rig.getWorldPosition(center);
+  light.position.set(center.x, center.y + 2.85, center.z + 2.15);
+  light.target.position.set(center.x, center.y + 0.02, center.z - 0.45);
+}
+
+function makeVoiceSpotlight() {
+  const light = new THREE.SpotLight(0xf2fff4, 0, 8.5, Math.PI / 8.5, 0.58, 1.55);
+  light.castShadow = true;
+  light.shadow.mapSize.set(1024, 1024);
+  light.shadow.bias = -0.0001;
+  return light;
 }
 
 function resetVideosForStage(stage) {
@@ -987,6 +1136,7 @@ function initializeEndingScene() {
   endingLogoPaths.forEach((path) => {
     path.setAttribute("d", logoPath);
   });
+  updateEndingFinalLogoShape(0);
 
   renderEndingQr(endingCards.left?.querySelector("canvas"), APP_STORE_URL);
   renderEndingQr(endingCards.right?.querySelector("canvas"), WEBSITE_URL);
@@ -1001,39 +1151,46 @@ function updateEndingScene(runTime) {
   const logoIn = easeOutBack(smoothstep(ENDING_LOGO_START, ENDING_LOGO_START + ENDING_LOGO_DURATION, runTime));
   const split = easeInOutCubic(smoothstep(ENDING_SPLIT_START, ENDING_SPLIT_START + ENDING_SPLIT_DURATION, runTime));
   const qr = easeInOutCubic(smoothstep(ENDING_QR_START, ENDING_QR_START + ENDING_QR_DURATION, runTime));
-  const travel = Math.min(window.innerWidth * 0.27, 360);
-  const lift = lerp(0, -20, split);
+  const rejoin = easeInOutCubic(smoothstep(ENDING_REJOIN_START, ENDING_REJOIN_START + ENDING_REJOIN_DURATION, runTime));
+  const finalLogo = easeInOutCubic(smoothstep(ENDING_FINAL_LOGO_START, ENDING_FINAL_LOGO_START + ENDING_FINAL_LOGO_DURATION, runTime));
+  const travel = Math.min(window.innerWidth * 0.28, 390);
+  const splitHold = split * (1 - rejoin);
+  const lift = lerp(0, -22, splitHold);
 
   endingScene.style.opacity = visible.toFixed(3);
-  endingCenter.style.opacity = (visible * logoIn * (1 - smoothstep(0.12, 0.78, split))).toFixed(3);
+  endingCenter.style.opacity = (visible * logoIn * (1 - smoothstep(0.1, 0.72, split)) * (1 - finalLogo)).toFixed(3);
   endingCenter.style.transform = [
     "translate(-50%, -50%)",
     `translateY(${lift.toFixed(2)}px)`,
     `scale(${lerp(0.72, 1, logoIn).toFixed(3)})`
   ].join(" ");
 
-  updateEndingCard(endingCards.left, -travel * split, lift, visible, logoIn, split, qr);
-  updateEndingCard(endingCards.right, travel * split, lift, visible, logoIn, split, qr);
-  updateEndingTypedText(runTime, visible, qr);
+  updateEndingCard(endingCards.left, -travel * splitHold, lift, visible, logoIn, split, qr, rejoin);
+  updateEndingCard(endingCards.right, travel * splitHold, lift, visible, logoIn, split, qr, rejoin);
+  updateEndingTypedText(runTime, visible, qr, rejoin);
+  updateEndingFinalLogo(runTime, visible, rejoin, finalLogo);
 }
 
-function updateEndingCard(card, x, y, visible, logoIn, split, qr) {
+function updateEndingCard(card, x, y, visible, logoIn, split, qr, rejoin) {
   if (!card) return;
 
-  const cardIn = visible * logoIn * smoothstep(0.04, 0.28, split);
+  const leave = smoothstep(0.72, 1, rejoin);
+  const cardIn = visible * logoIn * smoothstep(0.04, 0.28, split) * (1 - leave);
+  const qrAlpha = qr * (1 - smoothstep(0, 0.65, rejoin));
+  const logoAlpha = Math.max(1 - qr, smoothstep(0.12, 0.62, rejoin)) * (1 - leave);
   card.style.opacity = cardIn.toFixed(3);
   card.style.transform = [
     "translate(-50%, -50%)",
     `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`,
     `scale(${lerp(0.68, 1, Math.max(split, qr)).toFixed(3)})`
   ].join(" ");
-  card.style.setProperty("--card-alpha", (qr * 0.96).toFixed(3));
-  card.style.setProperty("--logo-alpha", (1 - qr).toFixed(3));
-  card.style.setProperty("--qr-alpha", qr.toFixed(3));
+  card.style.setProperty("--card-alpha", (qrAlpha * 0.96).toFixed(3));
+  card.style.setProperty("--logo-alpha", logoAlpha.toFixed(3));
+  card.style.setProperty("--qr-alpha", qrAlpha.toFixed(3));
   card.style.setProperty("--qr-scale", lerp(0.88, 1, qr).toFixed(3));
 }
 
-function updateEndingTypedText(runTime, visible, qr) {
+function updateEndingTypedText(runTime, visible, qr, rejoin) {
   if (!endingType) return;
 
   const typedCount = Math.max(0, Math.min(
@@ -1047,6 +1204,42 @@ function updateEndingTypedText(runTime, visible, qr) {
   endingType.style.opacity = (visible * enter * smoothstep(0.28, 0.78, qr)).toFixed(3);
 }
 
+function updateEndingFinalLogo(runTime, visible, rejoin, finalLogo) {
+  if (!endingFinal) return;
+
+  updateEndingFinalLogoShape(finalLogo);
+  const enter = smoothstep(0.08, 0.56, rejoin);
+  const scale = lerp(0.66, 1, easeOutBack(finalLogo));
+  endingFinal.style.opacity = (visible * enter).toFixed(3);
+  endingFinal.style.transform = [
+    "translate(-50%, -50%)",
+    `translateY(${lerp(-18, -28, finalLogo).toFixed(2)}px)`,
+    `scale(${scale.toFixed(3)})`
+  ].join(" ");
+
+  if (!endingFinalBrand) return;
+  const typedCount = Math.max(0, Math.min(
+    ENDING_FINAL_BRAND.length,
+    Math.floor((runTime - ENDING_FINAL_BRAND_START) / ENDING_FINAL_BRAND_INTERVAL)
+  ));
+  const typing = typedCount < ENDING_FINAL_BRAND.length && runTime >= ENDING_FINAL_BRAND_START;
+  const cursor = typing && Math.floor(runTime * 8) % 2 === 0 ? "|" : "";
+  endingFinalBrand.textContent = ENDING_FINAL_BRAND.slice(0, typedCount) + cursor;
+  endingFinalBrand.style.opacity = (visible * smoothstep(ENDING_FINAL_BRAND_START - 0.15, ENDING_FINAL_BRAND_START + 0.12, runTime)).toFixed(3);
+}
+
+function updateEndingFinalLogoShape(progress) {
+  if (!endingFinalPath) return;
+
+  const frameProgress = easeInOutCubic(smoothstep(0, 0.52, progress));
+  const foldProgress = easeInOutCubic(smoothstep(0.72, 1, progress));
+  const holeProgress = easeInOutCubic(smoothstep(0.18, 0.9, progress));
+  const outerFrame = interpolatePoints(circleShape.outer, frameShape.outer, frameProgress);
+  const logoOuter = interpolatePoints(outerFrame, logoShape.outer, foldProgress);
+  const logoInner = interpolatePoints(circleShape.inner, logoShape.inner, holeProgress);
+  endingFinalPath.setAttribute("d", `${pointsToPath(logoOuter)} ${pointsToPath(logoInner)}`);
+}
+
 function renderEndingQr(canvas, url) {
   if (!canvas) return;
 
@@ -1056,8 +1249,8 @@ function renderEndingQr(canvas, url) {
       margin: 2,
       errorCorrectionLevel: "M",
       color: {
-        dark: "#050807",
-        light: "#ffffff"
+        dark: QR_DARK_COLOR,
+        light: QR_LIGHT_COLOR
       }
     }, (error) => {
       if (error) drawFallbackQr(canvas, url);
@@ -1072,9 +1265,9 @@ function drawFallbackQr(canvas, url) {
   const ctx = canvas.getContext("2d");
   const cells = 33;
   const cell = canvas.width / cells;
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = QR_LIGHT_COLOR;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = "#050807";
+  ctx.fillStyle = QR_DARK_COLOR;
   drawFinder(ctx, cell, 2, 2);
   drawFinder(ctx, cell, cells - 9, 2);
   drawFinder(ctx, cell, 2, cells - 9);
@@ -1092,9 +1285,9 @@ function drawFallbackQr(canvas, url) {
 
 function drawFinder(ctx, cell, x, y) {
   ctx.fillRect(x * cell, y * cell, cell * 7, cell * 7);
-  ctx.fillStyle = "#ffffff";
+  ctx.fillStyle = QR_LIGHT_COLOR;
   ctx.fillRect((x + 1) * cell, (y + 1) * cell, cell * 5, cell * 5);
-  ctx.fillStyle = "#050807";
+  ctx.fillStyle = QR_DARK_COLOR;
   ctx.fillRect((x + 2) * cell, (y + 2) * cell, cell * 3, cell * 3);
 }
 
@@ -1655,10 +1848,15 @@ function makeVoiceAudioGain() {
     const context = new AudioContextClass();
     const source = context.createMediaElementSource(voiceAudio);
     const gain = context.createGain();
+    const analyser = context.createAnalyser();
+    analyser.fftSize = 1024;
+    analyser.smoothingTimeConstant = 0.18;
+    const timeData = new Uint8Array(analyser.fftSize);
     gain.gain.value = VOICE_VIDEO_VOLUME;
     source.connect(gain);
-    gain.connect(context.destination);
-    return { context, gain };
+    gain.connect(analyser);
+    analyser.connect(context.destination);
+    return { context, gain, analyser, timeData };
   } catch {
     return null;
   }
@@ -1675,6 +1873,7 @@ function setVoiceAudioVolume(volume) {
 }
 
 function ensureBackgroundMusicStarted(force = false) {
+  if (!experienceStarted) return;
   if (backgroundMusicPlayAttempted || !backgroundMusic.paused) return;
   if (backgroundMusicNeedsGesture && !force) return;
   backgroundMusicPlayAttempted = true;
@@ -1685,6 +1884,7 @@ function ensureBackgroundMusicStarted(force = false) {
 }
 
 function unlockAudioPlayback() {
+  if (!experienceStarted) return;
   backgroundMusicNeedsGesture = false;
   resumeVoiceAudioContext();
   ensureBackgroundMusicStarted(true);

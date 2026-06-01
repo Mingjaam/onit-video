@@ -126,6 +126,45 @@
       border-radius: inherit;
     }
 
+    .start-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 8;
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      background: transparent;
+      opacity: 1;
+      transition: opacity 360ms ease;
+    }
+
+    .start-overlay.is-hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .start-prompt {
+      display: none;
+      position: absolute;
+      left: 50%;
+      bottom: clamp(86px, 12vh, 150px);
+      transform: translateX(-50%);
+      color: rgba(8, 201, 35, 0.92);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(15px, 1.8vw, 22px);
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-shadow:
+        0 16px 34px rgba(0, 0, 0, 0.58),
+        0 0 22px rgba(8, 201, 35, 0.3);
+      animation: startPulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes startPulse {
+      0%, 100% { opacity: 0.52; transform: translateX(-50%) translateY(0); }
+      50% { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+    }
+
     .stage-caption {
       position: fixed;
       left: 50%;
@@ -159,6 +198,7 @@
     }
 
     .ending-center,
+    .ending-final,
     .ending-card {
       position: absolute;
       left: 50%;
@@ -168,12 +208,13 @@
     }
 
     .ending-center {
-      width: clamp(128px, 15vw, 214px);
-      height: clamp(128px, 15vw, 214px);
+      width: clamp(180px, 19vw, 276px);
+      height: clamp(180px, 19vw, 276px);
       opacity: 0;
     }
 
     .ending-center-circle {
+      display: none;
       position: absolute;
       inset: 0;
       border-radius: 50%;
@@ -188,7 +229,7 @@
       position: absolute;
       left: 50%;
       top: 50%;
-      width: 78%;
+      width: 58%;
       aspect-ratio: 1;
       transform: translate(-50%, -50%);
     }
@@ -206,32 +247,35 @@
     }
 
     .ending-center .ending-logo-mark path {
-      fill: #ffffff;
+      fill: #08c923;
     }
 
     .ending-card {
-      width: clamp(150px, 16vw, 236px);
+      width: clamp(180px, 19vw, 276px);
       aspect-ratio: 1;
-      border-radius: 24px;
-      background: rgba(255, 255, 255, var(--card-alpha, 0));
-      box-shadow:
-        0 30px 70px rgba(0, 0, 0, calc(var(--card-alpha, 0) * 0.44)),
-        0 0 44px rgba(8, 201, 35, calc(var(--card-alpha, 0) * 0.18));
+      border-radius: 28px;
+      background: transparent;
+      box-shadow: none;
       opacity: 0;
-      overflow: hidden;
+      overflow: visible;
     }
 
     .ending-card .ending-logo-mark {
-      width: 62%;
+      width: 58%;
       opacity: var(--logo-alpha, 1);
     }
 
     .ending-card canvas {
       position: absolute;
       left: 50%;
-      top: 46%;
-      width: 72%;
-      height: 72%;
+      top: 50%;
+      width: 58%;
+      height: 58%;
+      border-radius: 20px;
+      background: #050807;
+      box-shadow:
+        0 28px 70px rgba(0, 0, 0, calc(var(--qr-alpha, 0) * 0.42)),
+        0 0 42px rgba(8, 201, 35, calc(var(--qr-alpha, 0) * 0.2));
       transform: translate(-50%, -50%) scale(var(--qr-scale, 0.88));
       opacity: var(--qr-alpha, 0);
     }
@@ -240,14 +284,17 @@
       position: absolute;
       left: 0;
       right: 0;
-      bottom: 14px;
-      color: rgba(5, 8, 7, 0.82);
+      bottom: -44px;
+      color: rgba(8, 201, 35, 0.94);
       font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      font-size: clamp(11px, 1.1vw, 15px);
+      font-size: clamp(13px, 1.2vw, 17px);
       font-weight: 800;
       letter-spacing: 0;
       text-align: center;
       opacity: var(--qr-alpha, 0);
+      text-shadow:
+        0 14px 34px rgba(0, 0, 0, 0.58),
+        0 0 18px rgba(8, 201, 35, 0.22);
     }
 
     .ending-type {
@@ -268,6 +315,41 @@
         0 0 30px rgba(8, 201, 35, 0.25);
       opacity: 0;
       white-space: nowrap;
+    }
+
+    .ending-final {
+      width: clamp(152px, 17vw, 260px);
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .ending-final svg {
+      position: static;
+      display: block;
+      width: 100%;
+      height: auto;
+      overflow: visible;
+      filter:
+        drop-shadow(0 28px 52px rgba(0, 0, 0, 0.5))
+        drop-shadow(0 0 34px rgba(8, 201, 35, 0.18));
+    }
+
+    .ending-final path {
+      fill: #08c923;
+    }
+
+    .ending-final-brand {
+      margin-top: 18px;
+      color: rgba(8, 201, 35, 0.96);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(22px, 3vw, 44px);
+      font-weight: 900;
+      letter-spacing: 0.02em;
+      text-align: center;
+      text-shadow:
+        0 18px 42px rgba(0, 0, 0, 0.58),
+        0 0 26px rgba(8, 201, 35, 0.24);
+      min-height: 1.15em;
     }
 
     svg {
@@ -317,6 +399,9 @@
   </svg>
   <div class="brand">ON-IT</div>
   <div class="stage-caption" aria-hidden="true"></div>
+  <div class="start-overlay" aria-hidden="true">
+    <div class="start-prompt">CLICK TO START</div>
+  </div>
   <div class="ending-scene" aria-hidden="true">
     <div class="ending-center">
       <div class="ending-center-circle"></div>
@@ -338,6 +423,10 @@
       <canvas width="512" height="512"></canvas>
       <div class="ending-card-label">Website</div>
     </div>
+    <div class="ending-final">
+      <svg viewBox="0 0 100 100"><path class="ending-final-path" fill-rule="evenodd"></path></svg>
+      <div class="ending-final-brand"></div>
+    </div>
     <div class="ending-type" aria-hidden="true"></div>
   </div>
   <div class="progress"></div>
@@ -351,6 +440,6 @@
     }
   </script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
-  <script type="module" src="./logo-orb-test.js?v=ending-qr-sequence"></script>
+  <script type="module" src="./logo-orb-test.js?v=click-spotlight-final-logo"></script>
 </body>
 </html>
