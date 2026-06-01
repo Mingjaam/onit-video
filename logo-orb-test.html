@@ -149,6 +149,127 @@
       pointer-events: none;
     }
 
+    .ending-scene {
+      position: fixed;
+      inset: 0;
+      z-index: 4;
+      pointer-events: none;
+      opacity: 0;
+      will-change: opacity;
+    }
+
+    .ending-center,
+    .ending-card {
+      position: absolute;
+      left: 50%;
+      top: 45%;
+      transform: translate(-50%, -50%);
+      will-change: transform, opacity;
+    }
+
+    .ending-center {
+      width: clamp(128px, 15vw, 214px);
+      height: clamp(128px, 15vw, 214px);
+      opacity: 0;
+    }
+
+    .ending-center-circle {
+      position: absolute;
+      inset: 0;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 34% 25%, #55f267 0%, #08c923 58%, #00a91d 100%);
+      box-shadow:
+        0 34px 72px rgba(0, 0, 0, 0.5),
+        0 0 64px rgba(8, 201, 35, 0.22);
+    }
+
+    .ending-logo-mark {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      width: 78%;
+      aspect-ratio: 1;
+      transform: translate(-50%, -50%);
+    }
+
+    .ending-logo-mark svg {
+      position: static;
+      width: 100%;
+      height: 100%;
+      display: block;
+      overflow: visible;
+    }
+
+    .ending-logo-mark path {
+      fill: #08c923;
+    }
+
+    .ending-center .ending-logo-mark path {
+      fill: #ffffff;
+    }
+
+    .ending-card {
+      width: clamp(150px, 16vw, 236px);
+      aspect-ratio: 1;
+      border-radius: 24px;
+      background: rgba(255, 255, 255, var(--card-alpha, 0));
+      box-shadow:
+        0 30px 70px rgba(0, 0, 0, calc(var(--card-alpha, 0) * 0.44)),
+        0 0 44px rgba(8, 201, 35, calc(var(--card-alpha, 0) * 0.18));
+      opacity: 0;
+      overflow: hidden;
+    }
+
+    .ending-card .ending-logo-mark {
+      width: 62%;
+      opacity: var(--logo-alpha, 1);
+    }
+
+    .ending-card canvas {
+      position: absolute;
+      left: 50%;
+      top: 46%;
+      width: 72%;
+      height: 72%;
+      transform: translate(-50%, -50%) scale(var(--qr-scale, 0.88));
+      opacity: var(--qr-alpha, 0);
+    }
+
+    .ending-card-label {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 14px;
+      color: rgba(5, 8, 7, 0.82);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(11px, 1.1vw, 15px);
+      font-weight: 800;
+      letter-spacing: 0;
+      text-align: center;
+      opacity: var(--qr-alpha, 0);
+    }
+
+    .ending-type {
+      position: absolute;
+      left: 50%;
+      bottom: clamp(92px, 13vh, 154px);
+      width: min(960px, calc(100vw - 56px));
+      transform: translateX(-50%);
+      color: rgba(8, 201, 35, 0.98);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: clamp(22px, 3.3vw, 52px);
+      font-weight: 850;
+      letter-spacing: 0;
+      line-height: 1.18;
+      text-align: center;
+      text-shadow:
+        0 22px 54px rgba(0, 0, 0, 0.62),
+        0 0 30px rgba(8, 201, 35, 0.25);
+      opacity: 0;
+      white-space: nowrap;
+    }
+
     svg {
       position: fixed;
       width: 0;
@@ -196,6 +317,29 @@
   </svg>
   <div class="brand">ON-IT</div>
   <div class="stage-caption" aria-hidden="true"></div>
+  <div class="ending-scene" aria-hidden="true">
+    <div class="ending-center">
+      <div class="ending-center-circle"></div>
+      <div class="ending-logo-mark">
+        <svg viewBox="0 0 100 100"><path class="ending-logo-path" fill-rule="evenodd"></path></svg>
+      </div>
+    </div>
+    <div class="ending-card ending-card-left">
+      <div class="ending-logo-mark">
+        <svg viewBox="0 0 100 100"><path class="ending-logo-path" fill-rule="evenodd"></path></svg>
+      </div>
+      <canvas width="512" height="512"></canvas>
+      <div class="ending-card-label">App Store</div>
+    </div>
+    <div class="ending-card ending-card-right">
+      <div class="ending-logo-mark">
+        <svg viewBox="0 0 100 100"><path class="ending-logo-path" fill-rule="evenodd"></path></svg>
+      </div>
+      <canvas width="512" height="512"></canvas>
+      <div class="ending-card-label">Website</div>
+    </div>
+    <div class="ending-type" aria-hidden="true"></div>
+  </div>
   <div class="progress"></div>
 
   <script type="importmap">
@@ -206,6 +350,7 @@
       }
     }
   </script>
-  <script type="module" src="./logo-orb-test.js?v=voice-gain-220"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+  <script type="module" src="./logo-orb-test.js?v=ending-qr-sequence"></script>
 </body>
 </html>

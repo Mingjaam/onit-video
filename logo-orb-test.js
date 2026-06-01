@@ -8,6 +8,14 @@ const orbPath = document.getElementById("orbPath");
 const orbShadow = document.querySelector(".orb-shadow");
 const orbRipple = document.querySelector(".orb-ripple");
 const stageCaption = document.querySelector(".stage-caption");
+const endingScene = document.querySelector(".ending-scene");
+const endingCenter = document.querySelector(".ending-center");
+const endingCards = {
+  left: document.querySelector(".ending-card-left"),
+  right: document.querySelector(".ending-card-right")
+};
+const endingType = document.querySelector(".ending-type");
+const endingLogoPaths = [...document.querySelectorAll(".ending-logo-path")];
 
 const SPHERE_RADIUS = 0.38;
 const ROLL_SCALE = 0.9;
@@ -40,7 +48,7 @@ const VOICE_SCENE_DURATION = 7.1;
 const PRD_SCENE_DURATION = PRD_INTRO_DURATION + PRD_TAIL_DURATION;
 const BACKGROUND_MUSIC_VOLUME = 0.46;
 const VOICE_DUCKED_MUSIC_VOLUME = BACKGROUND_MUSIC_VOLUME * 0.25;
-const VOICE_VIDEO_VOLUME = 2.2;
+const VOICE_VIDEO_VOLUME = 2.8;
 const WS_PHONE_LEAD_TIME = 0.1;
 const WS_MAC_DELAY_TIME = 0.2;
 const PHONE_FADE_START = 11.85;
@@ -70,7 +78,22 @@ const SECOND_MACBOOK_REVEAL_DURATION = 1.2;
 const VOICE_VIDEO_START = SECOND_MACBOOK_REVEAL_START + SECOND_MACBOOK_REVEAL_DURATION;
 const PRD_SCENE_START = VOICE_VIDEO_START + VOICE_SCENE_DURATION + 0.35;
 const PRD_SCENE_TRANSITION_DURATION = 1.35;
-const LOOP_DURATION = 3.35 + PRD_SCENE_START + PRD_SCENE_TRANSITION_DURATION + PRD_SCENE_DURATION + 1.2;
+const ENDING_TEXT = "모든 플랫폼에서, 편하게, 설계까지.";
+const ENDING_TEXT_INTERVAL = 0.075;
+const ENDING_START = PRD_SCENE_START + PRD_SCENE_DURATION + 0.15;
+const ENDING_DEVICE_EXIT_DURATION = 1.05;
+const ENDING_LOGO_START = ENDING_START + 0.2;
+const ENDING_LOGO_DURATION = 1.0;
+const ENDING_SPLIT_START = ENDING_LOGO_START + 0.8;
+const ENDING_SPLIT_DURATION = 1.15;
+const ENDING_QR_START = ENDING_SPLIT_START + 0.68;
+const ENDING_QR_DURATION = 1.08;
+const ENDING_TEXT_START = ENDING_QR_START + 0.75;
+const ENDING_HOLD_DURATION = 5.0;
+const ENDING_END = ENDING_TEXT_START + (ENDING_TEXT.length * ENDING_TEXT_INTERVAL) + ENDING_HOLD_DURATION;
+const LOOP_DURATION = 3.35 + ENDING_END + 0.55;
+const APP_STORE_URL = "https://apps.apple.com/kr/app/on-it/id6758333783";
+const WEBSITE_URL = "https://on-it.kro.kr/";
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -270,6 +293,7 @@ const circleShape = makeCircleLogoShape();
 const frameShape = makeRoundedFrameShape();
 const logoShape = makeOnitLogoShape();
 const iphoneShape = makeIphoneShape();
+initializeEndingScene();
 const clock = new THREE.Clock();
 let lastIntroY = 0.44;
 let cameraTarget = new THREE.Vector3(0, -0.03, 0);
@@ -310,6 +334,7 @@ function animate() {
   updateAudioMix(runTime);
   updateCamera(t, runTime);
   updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
+  updateEndingScene(runTime);
 
   renderer.render(scene, camera);
 }
@@ -648,6 +673,7 @@ function updateCamera(t, runTime) {
   const reveal = smoothstep(5.95, 7.55, runTime);
   const macScene = getMacbookSceneProgress(runTime);
   const prdScene = getPrdSceneProgress(runTime);
+  const endingSceneProgress = easeInOutCubic(smoothstep(ENDING_START, ENDING_START + ENDING_DEVICE_EXIT_DURATION, runTime));
 
   camera.position.x = 0;
   camera.position.y = lerp(0.36, 1.2, smoothstep(0, 1.2, runTime));
@@ -655,6 +681,8 @@ function updateCamera(t, runTime) {
   camera.position.z = lerp(9.4, 6.65, reveal);
   camera.position.z = lerp(camera.position.z, 6.95, macScene);
   camera.position.z = lerp(camera.position.z, 5.55, prdScene);
+  camera.position.y = lerp(camera.position.y, 0.42, endingSceneProgress);
+  camera.position.z = lerp(camera.position.z, 7.8, endingSceneProgress);
 
   cameraTarget.set(0, lerp(-0.03, ball.y * 0.16, smoothstep(0.2, 1.8, runTime)), 0);
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
@@ -663,6 +691,8 @@ function updateCamera(t, runTime) {
   cameraTarget.z = lerp(cameraTarget.z, -1.1, macScene);
   cameraTarget.y = lerp(cameraTarget.y, -0.5, prdScene);
   cameraTarget.z = lerp(cameraTarget.z, -1.0, prdScene);
+  cameraTarget.y = lerp(cameraTarget.y, -0.08, endingSceneProgress);
+  cameraTarget.z = lerp(cameraTarget.z, -0.3, endingSceneProgress);
   camera.lookAt(cameraTarget);
 }
 
@@ -702,7 +732,8 @@ function updatePhone(runTime, phoneFade, t) {
 
 function updateLaptop(runTime) {
   const slide = smoothstep(LAPTOP_SLIDE_START, LAPTOP_SLIDE_START + LAPTOP_SLIDE_DURATION, runTime);
-  laptopRig.visible = slide > 0.001;
+  const endingExit = smoothstep(ENDING_START, ENDING_START + ENDING_DEVICE_EXIT_DURATION, runTime);
+  laptopRig.visible = slide > 0.001 && endingExit < 0.995;
   if (!laptopRig.visible) return;
 
   const eased = easeOutCubic(slide);
@@ -726,18 +757,18 @@ function updateLaptop(runTime) {
 
   laptopRig.position.set(
     lerp(dualX, 0, prdScene),
-    lerp(dualY, -0.58, prdScene),
-    lerp(dualZ, -0.42, prdScene)
+    lerp(dualY, -0.58, prdScene) - endingExit * 0.16,
+    lerp(dualZ, -0.42, prdScene) - endingExit * 0.3
   );
   laptopRig.rotation.set(
     lerp(dualRotX, -0.02, prdScene),
     lerp(dualRotY, 0, prdScene),
     lerp(dualRotZ, 0, prdScene)
   );
-  laptopRig.scale.setScalar(lerp(dualScale, 1.14, prdScene));
+  laptopRig.scale.setScalar(lerp(dualScale, 1.14, prdScene) * lerp(1, 0.94, endingExit));
 
   laptopRig.traverse((object) => {
-    setObjectOpacity(object, smoothstep(0.02, 0.82, slide));
+    setObjectOpacity(object, smoothstep(0.02, 0.82, slide) * (1 - endingExit));
   });
 }
 
@@ -852,6 +883,7 @@ function updateDeviceScreenVideos(runTime) {
 }
 
 function getDeviceScreenStage(runTime) {
+  if (runTime >= ENDING_START) return "ending";
   if (runTime >= PRD_SCENE_START) return "prd";
   if (runTime >= VOICE_VIDEO_START) return "voice";
   if (runTime >= LINEUP_READY_TIME) return "websocket";
@@ -948,6 +980,128 @@ function updateOrbShape(progress, phoneShapeProgress = 0) {
   const outer = interpolatePoints(logoOuter, iphoneShape.outer, phoneProgress);
   const inner = interpolatePoints(logoInner, iphoneShape.inner, phoneProgress);
   orbPath.setAttribute("d", `${pointsToPath(outer)} ${pointsToPath(inner)}`);
+}
+
+function initializeEndingScene() {
+  const logoPath = `${pointsToPath(logoShape.outer)} ${pointsToPath(logoShape.inner)}`;
+  endingLogoPaths.forEach((path) => {
+    path.setAttribute("d", logoPath);
+  });
+
+  renderEndingQr(endingCards.left?.querySelector("canvas"), APP_STORE_URL);
+  renderEndingQr(endingCards.right?.querySelector("canvas"), WEBSITE_URL);
+}
+
+function updateEndingScene(runTime) {
+  if (!endingScene) return;
+
+  const sceneIn = smoothstep(ENDING_START - 0.08, ENDING_START + 0.42, runTime);
+  const sceneOut = smoothstep(ENDING_END, ENDING_END + 0.34, runTime);
+  const visible = sceneIn * (1 - sceneOut);
+  const logoIn = easeOutBack(smoothstep(ENDING_LOGO_START, ENDING_LOGO_START + ENDING_LOGO_DURATION, runTime));
+  const split = easeInOutCubic(smoothstep(ENDING_SPLIT_START, ENDING_SPLIT_START + ENDING_SPLIT_DURATION, runTime));
+  const qr = easeInOutCubic(smoothstep(ENDING_QR_START, ENDING_QR_START + ENDING_QR_DURATION, runTime));
+  const travel = Math.min(window.innerWidth * 0.27, 360);
+  const lift = lerp(0, -20, split);
+
+  endingScene.style.opacity = visible.toFixed(3);
+  endingCenter.style.opacity = (visible * logoIn * (1 - smoothstep(0.12, 0.78, split))).toFixed(3);
+  endingCenter.style.transform = [
+    "translate(-50%, -50%)",
+    `translateY(${lift.toFixed(2)}px)`,
+    `scale(${lerp(0.72, 1, logoIn).toFixed(3)})`
+  ].join(" ");
+
+  updateEndingCard(endingCards.left, -travel * split, lift, visible, logoIn, split, qr);
+  updateEndingCard(endingCards.right, travel * split, lift, visible, logoIn, split, qr);
+  updateEndingTypedText(runTime, visible, qr);
+}
+
+function updateEndingCard(card, x, y, visible, logoIn, split, qr) {
+  if (!card) return;
+
+  const cardIn = visible * logoIn * smoothstep(0.04, 0.28, split);
+  card.style.opacity = cardIn.toFixed(3);
+  card.style.transform = [
+    "translate(-50%, -50%)",
+    `translate(${x.toFixed(2)}px, ${y.toFixed(2)}px)`,
+    `scale(${lerp(0.68, 1, Math.max(split, qr)).toFixed(3)})`
+  ].join(" ");
+  card.style.setProperty("--card-alpha", (qr * 0.96).toFixed(3));
+  card.style.setProperty("--logo-alpha", (1 - qr).toFixed(3));
+  card.style.setProperty("--qr-alpha", qr.toFixed(3));
+  card.style.setProperty("--qr-scale", lerp(0.88, 1, qr).toFixed(3));
+}
+
+function updateEndingTypedText(runTime, visible, qr) {
+  if (!endingType) return;
+
+  const typedCount = Math.max(0, Math.min(
+    ENDING_TEXT.length,
+    Math.floor((runTime - ENDING_TEXT_START) / ENDING_TEXT_INTERVAL)
+  ));
+  const typing = typedCount < ENDING_TEXT.length && runTime >= ENDING_TEXT_START;
+  const cursor = typing && Math.floor(runTime * 8) % 2 === 0 ? "|" : "";
+  const enter = smoothstep(ENDING_TEXT_START - 0.18, ENDING_TEXT_START + 0.12, runTime);
+  endingType.textContent = ENDING_TEXT.slice(0, typedCount) + cursor;
+  endingType.style.opacity = (visible * enter * smoothstep(0.28, 0.78, qr)).toFixed(3);
+}
+
+function renderEndingQr(canvas, url) {
+  if (!canvas) return;
+
+  if (window.QRCode?.toCanvas) {
+    window.QRCode.toCanvas(canvas, url, {
+      width: 512,
+      margin: 2,
+      errorCorrectionLevel: "M",
+      color: {
+        dark: "#050807",
+        light: "#ffffff"
+      }
+    }, (error) => {
+      if (error) drawFallbackQr(canvas, url);
+    });
+    return;
+  }
+
+  drawFallbackQr(canvas, url);
+}
+
+function drawFallbackQr(canvas, url) {
+  const ctx = canvas.getContext("2d");
+  const cells = 33;
+  const cell = canvas.width / cells;
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#050807";
+  drawFinder(ctx, cell, 2, 2);
+  drawFinder(ctx, cell, cells - 9, 2);
+  drawFinder(ctx, cell, 2, cells - 9);
+
+  let hash = 0;
+  for (let i = 0; i < url.length; i++) hash = ((hash << 5) - hash + url.charCodeAt(i)) | 0;
+  for (let y = 0; y < cells; y++) {
+    for (let x = 0; x < cells; x++) {
+      if (isFinderArea(x, y, cells)) continue;
+      const bit = ((x * 17 + y * 31 + hash + ((x ^ y) * 7)) & 7) < 3;
+      if (bit) ctx.fillRect(x * cell, y * cell, Math.ceil(cell), Math.ceil(cell));
+    }
+  }
+}
+
+function drawFinder(ctx, cell, x, y) {
+  ctx.fillRect(x * cell, y * cell, cell * 7, cell * 7);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect((x + 1) * cell, (y + 1) * cell, cell * 5, cell * 5);
+  ctx.fillStyle = "#050807";
+  ctx.fillRect((x + 2) * cell, (y + 2) * cell, cell * 3, cell * 3);
+}
+
+function isFinderArea(x, y, cells) {
+  return (x < 10 && y < 10) ||
+    (x > cells - 11 && y < 10) ||
+    (x < 10 && y > cells - 11);
 }
 
 function makeCircleLogoShape() {
