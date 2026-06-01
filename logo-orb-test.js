@@ -212,7 +212,8 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade) {
   const circleOpacity = circleIn;
   updateOrbShape(logoMorph, 0);
   syncClayCircleToSphere(phoneFade);
-  clayCircle.style.opacity = (circleOpacity * (1 - phoneFade)).toFixed(3);
+  const phoneCoverHide = smoothstep(0, 0.16, phoneFade);
+  clayCircle.style.opacity = (circleOpacity * (1 - phoneCoverHide)).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
@@ -809,6 +810,7 @@ function replacePhoneScreenMaterial(model) {
   if (!best) return false;
 
   const screenTexture = makeProjectListScreenTexture(false);
+  fitTextureToUvBounds(screenTexture, best.object.geometry);
   best.object.material = new THREE.MeshBasicMaterial({
     map: screenTexture,
     transparent: true,
@@ -819,6 +821,33 @@ function replacePhoneScreenMaterial(model) {
   });
   best.object.renderOrder = 30;
   return true;
+}
+
+function fitTextureToUvBounds(texture, geometry) {
+  const uv = geometry.attributes.uv;
+  if (!uv) return;
+
+  let minU = Infinity;
+  let maxU = -Infinity;
+  let minV = Infinity;
+  let maxV = -Infinity;
+
+  for (let index = 0; index < uv.count; index++) {
+    const u = uv.getX(index);
+    const v = uv.getY(index);
+    minU = Math.min(minU, u);
+    maxU = Math.max(maxU, u);
+    minV = Math.min(minV, v);
+    maxV = Math.max(maxV, v);
+  }
+
+  const width = Math.max(0.001, maxU - minU);
+  const height = Math.max(0.001, maxV - minV);
+  texture.wrapS = THREE.ClampToEdgeWrapping;
+  texture.wrapT = THREE.ClampToEdgeWrapping;
+  texture.repeat.set(1 / width, 1 / height);
+  texture.offset.set(-minU / width, -minV / height);
+  texture.needsUpdate = true;
 }
 
 function addFallbackPhone() {
