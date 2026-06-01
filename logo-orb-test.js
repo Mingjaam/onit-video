@@ -111,6 +111,7 @@ scene.add(roomGroup);
 const phoneRig = new THREE.Group();
 phoneRig.visible = false;
 scene.add(phoneRig);
+const phoneProjectionSamples = [];
 loadPhoneAsset();
 
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
@@ -468,26 +469,26 @@ function syncClayCircleToSphere(iphoneMorph = 0, iphoneReveal = 0) {
 }
 
 function getProjectedPhoneRect() {
-  if (!phoneRig.visible || phoneRig.children.length === 0) return null;
+  if (!phoneRig.visible || phoneProjectionSamples.length === 0) return null;
 
-  const box = new THREE.Box3().setFromObject(phoneRig);
-  if (box.isEmpty()) return null;
+  const projected = [];
+  phoneRig.updateWorldMatrix(true, true);
+  phoneProjectionSamples.forEach((sample) => {
+    const worldPoint = sample.object.localToWorld(sample.point.clone());
+    const ndc = worldPoint.clone().project(camera);
+    if (ndc.z < -1 || ndc.z > 1) return;
+    projected.push({
+      x: (ndc.x * 0.5 + 0.5) * window.innerWidth,
+      y: (-ndc.y * 0.5 + 0.5) * window.innerHeight
+    });
+  });
 
-  const corners = [
-    new THREE.Vector3(box.min.x, box.min.y, box.min.z),
-    new THREE.Vector3(box.min.x, box.min.y, box.max.z),
-    new THREE.Vector3(box.min.x, box.max.y, box.min.z),
-    new THREE.Vector3(box.min.x, box.max.y, box.max.z),
-    new THREE.Vector3(box.max.x, box.min.y, box.min.z),
-    new THREE.Vector3(box.max.x, box.min.y, box.max.z),
-    new THREE.Vector3(box.max.x, box.max.y, box.min.z),
-    new THREE.Vector3(box.max.x, box.max.y, box.max.z)
-  ].map(projectToScreen);
+  if (projected.length === 0) return null;
 
-  const minX = Math.min(...corners.map((point) => point.x));
-  const maxX = Math.max(...corners.map((point) => point.x));
-  const minY = Math.min(...corners.map((point) => point.y));
-  const maxY = Math.max(...corners.map((point) => point.y));
+  const minX = Math.min(...projected.map((point) => point.x));
+  const maxX = Math.max(...projected.map((point) => point.x));
+  const minY = Math.min(...projected.map((point) => point.y));
+  const maxY = Math.max(...projected.map((point) => point.y));
 
   return {
     x: (minX + maxX) / 2,
@@ -530,7 +531,7 @@ function updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t) {
   phoneRig.position.z = -0.04;
   phoneRig.rotation.set(
     lerp(0.08, 0, settle),
-    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * presence,
+    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * prepared,
     lerp(-0.02, 0, settle)
   );
   phoneRig.scale.setScalar(lerp(0.86, 1.14, settle));
@@ -665,9 +666,15 @@ function lerpPoint(from, to, progress) {
 
 function interpolatePoints(from, to, progress) {
   return from.map((point, index) => ({
-    x: lerp(point.x, to[index].x, progress),
-    y: lerp(point.y, to[index].y, progress)
+    x: lerp(point.x, samplePoint(to, index, from.length).x, progress),
+    y: lerp(point.y, samplePoint(to, index, from.length).y, progress)
   }));
+}
+
+function samplePoint(points, index, targetLength) {
+  if (points.length === targetLength) return points[index];
+  const scaledIndex = Math.round((index / Math.max(1, targetLength - 1)) * (points.length - 1));
+  return points[Math.max(0, Math.min(points.length - 1, scaledIndex))];
 }
 
 function pointsToPath(points) {
@@ -769,16 +776,17 @@ function loadPhoneAsset() {
           normalizeModel(model, 2.68);
           model.rotation.y = Math.PI;
           prepareTransparentModel(model);
+          cachePhoneProjectionSamples(model);
           phoneRig.add(model);
         },
         undefined,
         () => {
-          phoneRig.add(makeFallbackPhone());
+          addFallbackPhone();
         }
       );
     })
     .catch(() => {
-      phoneRig.add(makeFallbackPhone());
+      addFallbackPhone();
     });
 }
 
@@ -806,6 +814,36 @@ function prepareTransparentModel(model) {
       material.needsUpdate = true;
     });
   });
+}
+
+function cachePhoneProjectionSamples(model) {
+  phoneProjectionSamples.length = 0;
+
+  model.updateWorldMatrix(true, true);
+  const meshes = [];
+  model.traverse((object) => {
+    if (!object.isMesh || !object.geometry?.attributes?.position) return;
+    meshes.push(object);
+  });
+
+  const totalVertices = meshes.reduce((sum, object) => sum + object.geometry.attributes.position.count, 0);
+  const stride = Math.max(1, Math.ceil(totalVertices / 1800));
+
+  meshes.forEach((object) => {
+    const position = object.geometry.attributes.position;
+    for (let i = 0; i < position.count; i += stride) {
+      phoneProjectionSamples.push({
+        object,
+        point: new THREE.Vector3().fromBufferAttribute(position, i)
+      });
+    }
+  });
+}
+
+function addFallbackPhone() {
+  const fallback = makeFallbackPhone();
+  phoneRig.add(fallback);
+  cachePhoneProjectionSamples(fallback);
 }
 
 function makeFallbackPhone() {
