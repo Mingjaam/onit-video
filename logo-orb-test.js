@@ -40,6 +40,7 @@ const LAPTOP_SLIDE_START = PHONE_CURSOR_CLICK_TIME + 0.06;
 const LAPTOP_SLIDE_DURATION = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION - LAPTOP_SLIDE_START;
 const IPAD_SLIDE_START = LAPTOP_SLIDE_START;
 const IPAD_SLIDE_DURATION = LAPTOP_SLIDE_DURATION;
+const IPAD_LANDSCAPE_ROTATION = Math.PI / 2;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
@@ -651,7 +652,7 @@ function updateIpad(runTime) {
   ipadRig.rotation.set(
     lerp(0.06, 0.02, eased),
     lerp(0.34, 0.08, eased),
-    lerp(-0.035, 0, eased)
+    lerp(-0.035, IPAD_LANDSCAPE_ROTATION, eased)
   );
   ipadRig.scale.setScalar(lerp(0.76, 0.92, eased));
 
