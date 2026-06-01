@@ -17,7 +17,7 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 17.8;
+const LOOP_DURATION = 22.8;
 const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
@@ -174,9 +174,9 @@ function animate() {
   const dropReady = smoothstep(3.12, 3.35, t);
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
-  const iphoneMorph = smoothstep(11.85, 13.35, runTime);
-  const iphoneLoaded = smoothstep(13.32, 13.82, runTime);
-  const iphoneReveal = smoothstep(13.9, 15.25, runTime);
+  const iphoneMorph = smoothstep(11.85, 13.55, runTime);
+  const iphoneLoaded = smoothstep(13.82, 14.22, runTime);
+  const iphoneReveal = smoothstep(14.38, 15.9, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t);
@@ -533,7 +533,7 @@ function updatePhone(runTime, iphoneMorph, iphoneLoaded, iphoneReveal, t) {
     lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * presence,
     lerp(-0.02, 0, settle)
   );
-  phoneRig.scale.setScalar(lerp(0.76, 0.94, settle));
+  phoneRig.scale.setScalar(lerp(0.86, 1.14, settle));
 
   const opacity = smoothstep(0.08, 0.9, iphoneLoaded);
   phoneRig.traverse((object) => {
@@ -766,7 +766,7 @@ function loadPhoneAsset() {
         IPHONE_ASSET_URL,
         (gltf) => {
           const model = gltf.scene;
-          normalizeModel(model, 2.45);
+          normalizeModel(model, 2.68);
           model.rotation.y = Math.PI;
           prepareTransparentModel(model);
           phoneRig.add(model);
