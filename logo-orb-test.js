@@ -33,10 +33,12 @@ const PHONE_TYPE_INTERVAL = 0.16;
 const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
 const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
 const PHONE_SPIN_DURATION = 2.05;
-const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + 0.18;
+const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION * 0.48;
 const PHONE_HOME_ICON_U = 0.5;
 const PHONE_HOME_ICON_V = 0.42;
 const PHONE_HOME_ICON_SIZE = 0.24;
+const PHONE_ICON_MATERIALIZE_START = PHONE_FADE_END + 0.08;
+const PHONE_ICON_MATERIALIZE_END = PHONE_ICON_MATERIALIZE_START + 0.5;
 const PHONE_SCREEN_IMAGE_URLS = [
   "./assets/img/IMG_5928.PNG",
   "./assets/img/IMG_5929.PNG",
@@ -247,7 +249,7 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runT
   if (phoneFade > 0.001) syncClayCircleToPhoneIcon(iconLanding);
   else syncClayCircleToSphere(0);
 
-  const landedOnScreen = smoothstep(PHONE_FADE_END - 0.12, PHONE_FADE_END + 0.24, runTime);
+  const landedOnScreen = smoothstep(PHONE_ICON_MATERIALIZE_START, PHONE_ICON_MATERIALIZE_END, runTime);
   clayCircle.style.opacity = (circleOpacity * (1 - landedOnScreen)).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
@@ -1002,10 +1004,17 @@ function renderPhoneIntroScreen(runTime) {
   ctx.fillStyle = glow;
   ctx.fillRect(0, 0, w, h);
 
-  const iconPop = easeOutBack(smoothstep(PHONE_FADE_START, PHONE_FADE_END + 0.12, runTime));
-  drawOnitAppIcon(ctx, iconX, iconY, iconSize * iconPop);
+  const iconMaterialize = smoothstep(PHONE_ICON_MATERIALIZE_START, PHONE_ICON_MATERIALIZE_END, runTime);
+  if (iconMaterialize > 0) {
+    const iconPop = easeOutBack(iconMaterialize);
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, iconMaterialize * 1.2);
+    drawOnitAppIcon(ctx, iconX, iconY, iconSize * iconPop);
+    ctx.restore();
+  }
 
-  const typedCount = Math.max(0, Math.min(PHONE_APP_NAME.length, Math.floor((runTime - PHONE_TYPE_START) / PHONE_TYPE_INTERVAL)));
+  const typeStart = Math.max(PHONE_TYPE_START, PHONE_ICON_MATERIALIZE_END + 0.06);
+  const typedCount = Math.max(0, Math.min(PHONE_APP_NAME.length, Math.floor((runTime - typeStart) / PHONE_TYPE_INTERVAL)));
   const typed = PHONE_APP_NAME.slice(0, typedCount);
   const showCursor = runTime < PHONE_CURSOR_CLICK_TIME && Math.floor(runTime * 3.2) % 2 === 0;
   drawTypedAppName(ctx, typed, showCursor, iconX, iconY + iconSize * 0.8, iconSize);
