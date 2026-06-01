@@ -27,6 +27,16 @@ const IPHONE_ASSET_URL = "./assets/iphone_16_-_free.glb";
 const PHONE_FADE_START = 11.85;
 const PHONE_FADE_END = 13.35;
 const PHONE_IMAGE_INTERVAL = 0.75;
+const PHONE_APP_NAME = "on-it";
+const PHONE_TYPE_START = PHONE_FADE_END + 0.25;
+const PHONE_TYPE_INTERVAL = 0.16;
+const PHONE_CURSOR_ENTER_START = PHONE_TYPE_START + 0.22;
+const PHONE_CURSOR_CLICK_TIME = PHONE_TYPE_START + 1.28;
+const PHONE_SPIN_DURATION = 1.25;
+const PHONE_IMAGE_SEQUENCE_START = PHONE_CURSOR_CLICK_TIME + 0.18;
+const PHONE_HOME_ICON_U = 0.5;
+const PHONE_HOME_ICON_V = 0.42;
+const PHONE_HOME_ICON_SIZE = 0.24;
 const PHONE_SCREEN_IMAGE_URLS = [
   "./assets/img/IMG_5928.PNG",
   "./assets/img/IMG_5929.PNG",
@@ -69,9 +79,12 @@ renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
+const phoneIntroScreen = makePhoneIntroScreenTexture();
 const phoneScreenTextures = loadPhoneScreenTextures();
 const phoneScreenMaterials = [];
-let currentPhoneScreenTextureIndex = -1;
+let currentPhoneScreenMapKey = "";
+let phoneScreenIconLocal = null;
+let phoneScreenIconRadius = 0.09;
 
 const hemi = new THREE.HemisphereLight(0xeaffef, 0x172018, 0.74);
 scene.add(hemi);
@@ -198,12 +211,12 @@ function animate() {
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
   updatePhone(runTime, phoneFade, t);
   updateCamera(t, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade, runTime) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -230,9 +243,12 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, phoneFade) {
 
   const circleOpacity = circleIn;
   updateOrbShape(logoMorph, 0);
-  syncClayCircleToSphere(phoneFade);
-  const phoneCoverHide = smoothstep(0, 0.16, phoneFade);
-  clayCircle.style.opacity = (circleOpacity * (1 - phoneCoverHide)).toFixed(3);
+  const iconLanding = smoothstep(PHONE_FADE_START, PHONE_FADE_END, runTime);
+  if (phoneFade > 0.001) syncClayCircleToPhoneIcon(iconLanding);
+  else syncClayCircleToSphere(0);
+
+  const landedOnScreen = smoothstep(PHONE_FADE_END - 0.12, PHONE_FADE_END + 0.24, runTime);
+  clayCircle.style.opacity = (circleOpacity * (1 - landedOnScreen)).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
@@ -473,6 +489,54 @@ function syncClayCircleToSphere(centerOverride = 0) {
   orbRipple.style.opacity = "0";
 }
 
+function syncClayCircleToPhoneIcon(progress) {
+  sphereGroup.updateWorldMatrix(true, false);
+
+  const startCenter = new THREE.Vector3(0, 0, 0);
+  const startEdge = new THREE.Vector3(SPHERE_RADIUS, 0, 0);
+  sphereGroup.localToWorld(startCenter);
+  sphereGroup.localToWorld(startEdge);
+
+  const startPx = projectToScreen(startCenter);
+  const startEdgePx = projectToScreen(startEdge);
+  const startDiameter = Math.max(1, Math.hypot(startEdgePx.x - startPx.x, startEdgePx.y - startPx.y) * 2);
+  const target = projectPhoneIconMetrics();
+  const eased = easeInOutCubic(progress);
+  const diameter = lerp(startDiameter, target.diameter, eased);
+
+  clayCircle.style.left = `${lerp(startPx.x, target.x, eased).toFixed(2)}px`;
+  clayCircle.style.top = `${lerp(startPx.y, target.y, eased).toFixed(2)}px`;
+  clayCircle.style.width = `${diameter.toFixed(2)}px`;
+  clayCircle.style.height = `${diameter.toFixed(2)}px`;
+  clayCircle.style.clipPath = "none";
+  orbShadow.style.opacity = "0";
+  orbRipple.style.opacity = "0";
+}
+
+function projectPhoneIconMetrics() {
+  if (!phoneScreenIconLocal) {
+    return {
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2 - Math.min(window.innerHeight, window.innerWidth) * 0.04,
+      diameter: Math.max(34, Math.min(window.innerHeight, window.innerWidth) * 0.075)
+    };
+  }
+
+  phoneRig.updateWorldMatrix(true, true);
+  const center = phoneScreenIconLocal.clone();
+  const edge = phoneScreenIconLocal.clone().add(new THREE.Vector3(phoneScreenIconRadius, 0, 0));
+  phoneRig.localToWorld(center);
+  phoneRig.localToWorld(edge);
+
+  const centerPx = projectToScreen(center);
+  const edgePx = projectToScreen(edge);
+  return {
+    x: centerPx.x,
+    y: centerPx.y,
+    diameter: Math.max(28, Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y) * 2)
+  };
+}
+
 function projectToScreen(worldPosition) {
   const ndc = worldPosition.clone().project(camera);
   return {
@@ -500,14 +564,22 @@ function updatePhone(runTime, phoneFade, t) {
   phoneRig.visible = phoneFade > 0.01;
   if (!phoneRig.visible) return;
 
-  updatePhoneScreenTexture(Math.max(0, runTime - PHONE_FADE_START));
+  updatePhoneScreenSequence(runTime);
 
   const settle = easeOutCubic(phoneFade);
+  const spinProgress = easeInOutCubic(smoothstep(PHONE_CURSOR_CLICK_TIME, PHONE_CURSOR_CLICK_TIME + PHONE_SPIN_DURATION, runTime));
+  const spinLift = Math.sin(spinProgress * Math.PI);
+  const baseX = lerp(0.08, 0, settle);
+  const baseY = lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade;
+  const baseZ = lerp(-0.02, 0, settle);
+
   phoneRig.position.set(0, 0, -0.2);
+  phoneRig.position.x += spinLift * 0.14;
+  phoneRig.position.y += spinLift * 0.16;
   phoneRig.rotation.set(
-    lerp(0.08, 0, settle),
-    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * phoneFade,
-    lerp(-0.02, 0, settle)
+    baseX - spinLift * 0.36,
+    baseY + spinProgress * Math.PI * 2,
+    baseZ - spinLift * 0.2
   );
   phoneRig.scale.setScalar(lerp(0.86, 1.08, settle));
 
@@ -824,19 +896,23 @@ function replacePhoneScreenMaterial(model) {
     const score = (long * short) + (center.z * 3.2) + (darkSurface * 0.45) + screenNameBias - (thin * 20);
 
     if (!best || score > best.score) {
-      best = { object, score };
+      best = { object, score, center: center.clone(), size: size.clone() };
     }
   });
 
   if (!best) return false;
 
-  const screenTextures = phoneScreenTextures.length
-    ? phoneScreenTextures
-    : [makeProjectListScreenTexture(false)];
+  const screenTextures = [phoneIntroScreen.texture, ...phoneScreenTextures];
   screenTextures.forEach((texture) => fitTextureToUvBounds(texture, best.object.geometry));
 
+  const screenWidth = Math.min(best.size.x, best.size.y);
+  const screenHeight = Math.max(best.size.x, best.size.y);
+  phoneScreenIconLocal = best.center.clone();
+  phoneScreenIconLocal.y += (0.5 - PHONE_HOME_ICON_V) * screenHeight;
+  phoneScreenIconRadius = screenWidth * PHONE_HOME_ICON_SIZE * 0.5;
+
   const screenMaterial = new THREE.MeshBasicMaterial({
-    map: screenTextures[0],
+    map: phoneIntroScreen.texture,
     transparent: true,
     opacity: 0,
     depthTest: true,
@@ -858,6 +934,16 @@ function loadPhoneScreenTextures() {
   });
 }
 
+function makePhoneIntroScreenTexture() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 1206;
+  canvas.height = 2622;
+  const ctx = canvas.getContext("2d");
+  const texture = new THREE.CanvasTexture(canvas);
+  configurePhoneScreenTexture(texture);
+  return { canvas, ctx, texture };
+}
+
 function configurePhoneScreenTexture(texture) {
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.flipY = false;
@@ -871,17 +957,151 @@ function configurePhoneScreenTexture(texture) {
   return texture;
 }
 
-function updatePhoneScreenTexture(screenTime) {
-  if (!phoneScreenMaterials.length || !phoneScreenTextures.length) return;
+function updatePhoneScreenSequence(runTime) {
+  if (!phoneScreenMaterials.length) return;
 
-  const textureIndex = Math.floor(screenTime / PHONE_IMAGE_INTERVAL) % phoneScreenTextures.length;
-  if (textureIndex === currentPhoneScreenTextureIndex) return;
+  if (runTime < PHONE_IMAGE_SEQUENCE_START || !phoneScreenTextures.length) {
+    renderPhoneIntroScreen(runTime);
+    setPhoneScreenMap(phoneIntroScreen.texture, "intro");
+    phoneIntroScreen.texture.needsUpdate = true;
+    return;
+  }
 
-  currentPhoneScreenTextureIndex = textureIndex;
+  const imageTime = Math.max(0, runTime - PHONE_IMAGE_SEQUENCE_START);
+  const textureIndex = Math.floor(imageTime / PHONE_IMAGE_INTERVAL) % phoneScreenTextures.length;
+  setPhoneScreenMap(phoneScreenTextures[textureIndex], `image-${textureIndex}`);
+}
+
+function setPhoneScreenMap(texture, key) {
+  if (key === currentPhoneScreenMapKey) return;
+
+  currentPhoneScreenMapKey = key;
   phoneScreenMaterials.forEach((material) => {
-    material.map = phoneScreenTextures[textureIndex];
+    material.map = texture;
     material.needsUpdate = true;
   });
+}
+
+function renderPhoneIntroScreen(runTime) {
+  const { canvas, ctx } = phoneIntroScreen;
+  const w = canvas.width;
+  const h = canvas.height;
+  const iconSize = w * PHONE_HOME_ICON_SIZE;
+  const iconX = w * PHONE_HOME_ICON_U;
+  const iconY = h * PHONE_HOME_ICON_V;
+
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = "#020503";
+  ctx.fillRect(0, 0, w, h);
+
+  const glow = ctx.createRadialGradient(iconX, iconY, iconSize * 0.2, iconX, iconY, iconSize * 2.8);
+  glow.addColorStop(0, "rgba(8, 201, 35, 0.26)");
+  glow.addColorStop(0.35, "rgba(8, 201, 35, 0.08)");
+  glow.addColorStop(1, "rgba(8, 201, 35, 0)");
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+
+  const iconPop = easeOutBack(smoothstep(PHONE_FADE_START, PHONE_FADE_END + 0.12, runTime));
+  drawOnitAppIcon(ctx, iconX, iconY, iconSize * iconPop);
+
+  const typedCount = Math.max(0, Math.min(PHONE_APP_NAME.length, Math.floor((runTime - PHONE_TYPE_START) / PHONE_TYPE_INTERVAL)));
+  const typed = PHONE_APP_NAME.slice(0, typedCount);
+  const showCursor = runTime < PHONE_CURSOR_CLICK_TIME && Math.floor(runTime * 3.2) % 2 === 0;
+  drawTypedAppName(ctx, typed, showCursor, iconX, iconY + iconSize * 0.8, iconSize);
+
+  const cursorProgress = smoothstep(PHONE_CURSOR_ENTER_START, PHONE_CURSOR_CLICK_TIME - 0.12, runTime);
+  const click = smoothstep(PHONE_CURSOR_CLICK_TIME - 0.08, PHONE_CURSOR_CLICK_TIME, runTime)
+    * (1 - smoothstep(PHONE_CURSOR_CLICK_TIME + 0.02, PHONE_CURSOR_CLICK_TIME + 0.22, runTime));
+  if (cursorProgress > 0 && runTime < PHONE_IMAGE_SEQUENCE_START) {
+    const startX = w * 1.08;
+    const startY = iconY + iconSize * 0.96;
+    const endX = iconX + iconSize * 0.34;
+    const endY = iconY + iconSize * 0.34;
+    const eased = easeInOutCubic(cursorProgress);
+    drawMouseCursor(ctx, lerp(startX, endX, eased), lerp(startY, endY, eased), iconSize * (0.28 - click * 0.04), click);
+  }
+}
+
+function drawOnitAppIcon(ctx, cx, cy, size) {
+  if (size <= 1) return;
+
+  const r = size * 0.22;
+  const x = cx - size / 2;
+  const y = cy - size / 2;
+  roundRect(ctx, x, y, size, size, r, "#08c923");
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(size / 100, size / 100);
+  ctx.fillStyle = "#ffffff";
+  ctx.beginPath();
+  roundedRectPath(ctx, 22, 18, 59, 64, 7);
+  ctx.fill();
+  ctx.fillStyle = "#08c923";
+  ctx.beginPath();
+  roundedRectPath(ctx, 33, 30, 36, 38, 4);
+  ctx.fill();
+  ctx.fillStyle = "#08c923";
+  ctx.beginPath();
+  ctx.moveTo(61, 68);
+  ctx.lineTo(81, 68);
+  ctx.lineTo(61, 88);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+
+  ctx.save();
+  ctx.globalAlpha = 0.28;
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = Math.max(2, size * 0.018);
+  roundRectStroke(ctx, x + size * 0.03, y + size * 0.03, size * 0.94, size * 0.94, r * 0.86);
+  ctx.restore();
+}
+
+function drawTypedAppName(ctx, text, showCursor, cx, y, iconSize) {
+  ctx.save();
+  ctx.font = `700 ${Math.round(iconSize * 0.24)}px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace`;
+  ctx.textBaseline = "middle";
+  ctx.textAlign = "left";
+  const fullWidth = ctx.measureText(PHONE_APP_NAME).width;
+  const startX = cx - fullWidth / 2;
+  ctx.fillStyle = "#08c923";
+  ctx.fillText(text, startX, y);
+  if (showCursor) {
+    const typedWidth = ctx.measureText(text).width;
+    ctx.fillRect(startX + typedWidth + iconSize * 0.03, y - iconSize * 0.12, iconSize * 0.045, iconSize * 0.24);
+  }
+  ctx.restore();
+}
+
+function drawMouseCursor(ctx, x, y, size, click) {
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(1 - click * 0.12, 1 - click * 0.12);
+  ctx.fillStyle = "#ffffff";
+  ctx.strokeStyle = "#0a0d0a";
+  ctx.lineWidth = Math.max(4, size * 0.06);
+  ctx.lineJoin = "round";
+  ctx.beginPath();
+  ctx.moveTo(0, 0);
+  ctx.lineTo(0, size);
+  ctx.lineTo(size * 0.27, size * 0.73);
+  ctx.lineTo(size * 0.46, size * 1.14);
+  ctx.lineTo(size * 0.64, size * 1.05);
+  ctx.lineTo(size * 0.45, size * 0.65);
+  ctx.lineTo(size * 0.84, size * 0.64);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.fill();
+  if (click > 0) {
+    ctx.globalAlpha = click * 0.8;
+    ctx.strokeStyle = "#08c923";
+    ctx.lineWidth = Math.max(5, size * 0.055);
+    ctx.beginPath();
+    ctx.arc(0, 0, size * (0.72 + click * 0.42), 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.restore();
 }
 
 function fitTextureToUvBounds(texture, geometry) {
@@ -933,18 +1153,20 @@ function makeFallbackPhone() {
   body.castShadow = true;
   group.add(body);
 
-  const screen = new THREE.Mesh(
-    new THREE.PlaneGeometry(0.82, 1.72),
-    new THREE.MeshBasicMaterial({
-      map: phoneScreenTextures[0] || makeProjectListScreenTexture(true),
+  const fallbackScreenMaterial = new THREE.MeshBasicMaterial({
+      map: phoneIntroScreen.texture,
       transparent: true,
       opacity: 0,
       depthWrite: false,
       toneMapped: false
-    })
+    });
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.82, 1.72),
+    fallbackScreenMaterial
   );
   screen.position.z = 0.045;
   group.add(screen);
+  phoneScreenMaterials.push(fallbackScreenMaterial);
 
   return group;
 }
@@ -1180,14 +1402,25 @@ function makeProjectListScreenTexture(flipY = false) {
 function roundRect(ctx, x, y, width, height, radius, fill) {
   const r = Math.min(radius, width / 2, height / 2);
   ctx.beginPath();
+  roundedRectPath(ctx, x, y, width, height, r);
+  ctx.fillStyle = fill;
+  ctx.fill();
+}
+
+function roundRectStroke(ctx, x, y, width, height, radius) {
+  ctx.beginPath();
+  roundedRectPath(ctx, x, y, width, height, radius);
+  ctx.stroke();
+}
+
+function roundedRectPath(ctx, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
   ctx.moveTo(x + r, y);
   ctx.arcTo(x + width, y, x + width, y + height, r);
   ctx.arcTo(x + width, y + height, x, y + height, r);
   ctx.arcTo(x, y + height, x, y, r);
   ctx.arcTo(x, y, x + width, y, r);
   ctx.closePath();
-  ctx.fillStyle = fill;
-  ctx.fill();
 }
 
 function pill(ctx, x, y, width, height, fill, color, text) {
@@ -1242,6 +1475,12 @@ function easeInOutCubic(x) {
 
 function easeOutCubic(x) {
   return 1 - Math.pow(1 - x, 3);
+}
+
+function easeOutBack(x) {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2);
 }
 
 function lerp(a, b, t) {
