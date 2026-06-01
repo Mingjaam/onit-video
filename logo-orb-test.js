@@ -17,12 +17,13 @@ const FLOOR_Y = -2.42;
 const FLOOR_CONTACT_Y = FLOOR_Y + (SPHERE_RADIUS * ROLL_SCALE);
 const MORPH_START_Y = 0.44;
 const SHAPE_POINT_COUNT = 88;
-const LOOP_DURATION = 16.6;
+const LOOP_DURATION = 17.8;
 const IPHONE_ASPECT_RATIO = 159.9 / 76.7;
 const BALL_COLOR = 0x08c923;
 const BOARD_COLOR = 0x050807;
 const RED = 0xd94435;
 const METAL = 0xb8bab7;
+const IPHONE_ASSET_URL = "./assets/iphone_15_pro_max_black.glb";
 
 const TRACK_LAYOUT = {
   coordinateSystem: {
@@ -107,6 +108,11 @@ const screenMaterial = new THREE.MeshStandardMaterial({
 const roomGroup = new THREE.Group();
 scene.add(roomGroup);
 
+const phoneRig = new THREE.Group();
+phoneRig.visible = false;
+scene.add(phoneRig);
+loadPhoneAsset();
+
 const railSegments = TRACK_LAYOUT.rails.map(makeRailFromLayout);
 
 railSegments.forEach((segment) => addParallelRails(segment.curve));
@@ -169,15 +175,17 @@ function animate() {
   const runTime = Math.max(0, t - 3.35);
   const logoMorph = smoothstep(5.65, 10.85, runTime);
   const iphoneMorph = smoothstep(11.85, 13.45, runTime);
+  const iphoneReveal = smoothstep(13.42, 14.82, runTime);
 
   updateBall(t, dropReady, runTime, circleIn, logoMorph);
+  updatePhone(runTime, iphoneMorph, iphoneReveal, t);
   updateCamera(t, runTime);
-  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph);
+  updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, iphoneReveal);
 
   renderer.render(scene, camera);
 }
 
-function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph) {
+function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph, iphoneReveal) {
   letters.forEach((letter, index) => {
     const item = letterLayout[index];
     const delay = index * 0.045;
@@ -204,8 +212,8 @@ function updateClayLogo(t, gather, circleIn, logoOut, logoMorph, iphoneMorph) {
 
   const circleOpacity = circleIn;
   updateOrbShape(logoMorph, iphoneMorph);
-  syncClayCircleToSphere(iphoneMorph);
-  clayCircle.style.opacity = circleOpacity.toFixed(3);
+  syncClayCircleToSphere(iphoneMorph, iphoneReveal);
+  clayCircle.style.opacity = (circleOpacity * (1 - smoothstep(0.94, 1, iphoneReveal))).toFixed(3);
   clayCircle.style.transform = "translate(-50%, -50%)";
 }
 
@@ -405,7 +413,7 @@ function railTangentAtDistance(rail, s) {
   return rail.curve.getTangentAt(Math.max(0, Math.min(1, s / rail.length))).normalize();
 }
 
-function syncClayCircleToSphere(iphoneMorph = 0) {
+function syncClayCircleToSphere(iphoneMorph = 0, iphoneReveal = 0) {
   sphereGroup.updateWorldMatrix(true, false);
 
   const center = new THREE.Vector3(0, 0, 0);
@@ -420,7 +428,7 @@ function syncClayCircleToSphere(iphoneMorph = 0) {
   const radiusPx = Math.hypot(edgePx.x - centerPx.x, edgePx.y - centerPx.y);
   const diameter = Math.max(1, radiusPx * 2);
   const phoneEase = easeInOutCubic(iphoneMorph);
-  const phoneWidth = diameter * 0.72;
+  const phoneWidth = diameter * 1.12;
   const phoneHeight = phoneWidth * IPHONE_ASPECT_RATIO;
   const visualWidth = lerp(diameter, phoneWidth, phoneEase);
   const visualHeight = lerp(diameter, phoneHeight, phoneEase);
@@ -432,6 +440,7 @@ function syncClayCircleToSphere(iphoneMorph = 0) {
   clayCircle.style.top = `${centerPx.y.toFixed(2)}px`;
   clayCircle.style.width = `${visualWidth.toFixed(2)}px`;
   clayCircle.style.height = `${visualHeight.toFixed(2)}px`;
+  clayCircle.style.clipPath = `inset(${(iphoneReveal * 100).toFixed(2)}% 0 0 0 round ${(visualWidth * 0.17).toFixed(2)}px)`;
 
   orbShadow.style.left = `${floorPx.x.toFixed(2)}px`;
   orbShadow.style.top = `${floorPx.y.toFixed(2)}px`;
@@ -469,6 +478,27 @@ function updateCamera(t, runTime) {
   cameraTarget.y = lerp(cameraTarget.y, -0.35, reveal);
   cameraTarget.z = lerp(cameraTarget.z, -1.25, reveal);
   camera.lookAt(cameraTarget);
+}
+
+function updatePhone(runTime, iphoneMorph, iphoneReveal, t) {
+  const presence = Math.max(iphoneMorph, iphoneReveal);
+  phoneRig.visible = presence > 0.01;
+  if (!phoneRig.visible) return;
+
+  const settle = easeOutCubic(smoothstep(11.85, 13.15, runTime));
+  phoneRig.position.copy(sphereGroup.position);
+  phoneRig.position.z = -0.04;
+  phoneRig.rotation.set(
+    lerp(0.08, 0, settle),
+    lerp(-0.18, 0.02, settle) + Math.sin(t * 0.45) * 0.012 * presence,
+    lerp(-0.02, 0, settle)
+  );
+  phoneRig.scale.setScalar(lerp(0.76, 0.94, settle));
+
+  const opacity = smoothstep(0.02, 0.38, presence);
+  phoneRig.traverse((object) => {
+    setObjectOpacity(object, opacity);
+  });
 }
 
 function updateOrbShape(progress, iphoneMorph = 0) {
@@ -686,6 +716,93 @@ function addGate(position, rotationY, label, size = 1) {
   screen.material.needsUpdate = true;
 
   trackGroup.add(group);
+}
+
+function loadPhoneAsset() {
+  import("three/addons/loaders/GLTFLoader.js")
+    .then(({ GLTFLoader }) => {
+      const loader = new GLTFLoader();
+      loader.load(
+        IPHONE_ASSET_URL,
+        (gltf) => {
+          const model = gltf.scene;
+          normalizeModel(model, 2.45);
+          model.rotation.y = Math.PI;
+          prepareTransparentModel(model);
+          phoneRig.add(model);
+        },
+        undefined,
+        () => {
+          phoneRig.add(makeFallbackPhone());
+        }
+      );
+    })
+    .catch(() => {
+      phoneRig.add(makeFallbackPhone());
+    });
+}
+
+function normalizeModel(model, targetSize) {
+  const box = new THREE.Box3().setFromObject(model);
+  const size = box.getSize(new THREE.Vector3());
+  const center = box.getCenter(new THREE.Vector3());
+  const scale = targetSize / Math.max(size.x, size.y, size.z, 0.001);
+  model.position.sub(center);
+  model.scale.setScalar(scale);
+}
+
+function prepareTransparentModel(model) {
+  model.traverse((object) => {
+    if (!object.isMesh) return;
+    object.castShadow = true;
+    object.receiveShadow = true;
+    if (!object.material) return;
+    const materials = Array.isArray(object.material) ? object.material : [object.material];
+    materials.forEach((material) => {
+      material.transparent = true;
+      material.opacity = 0;
+      material.envMapIntensity = Math.max(material.envMapIntensity || 0, 1.15);
+      if (material.color) material.color.offsetHSL(0, -0.02, 0.05);
+      material.needsUpdate = true;
+    });
+  });
+}
+
+function makeFallbackPhone() {
+  const group = new THREE.Group();
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(0.92, 1.9, 0.08),
+    new THREE.MeshPhysicalMaterial({
+      color: 0x101614,
+      roughness: 0.44,
+      metalness: 0.16,
+      clearcoat: 0.46,
+      clearcoatRoughness: 0.24,
+      transparent: true,
+      opacity: 0
+    })
+  );
+  body.castShadow = true;
+  group.add(body);
+
+  const screen = new THREE.Mesh(
+    new THREE.PlaneGeometry(0.82, 1.72),
+    new THREE.MeshBasicMaterial({ color: 0x07110c, transparent: true, opacity: 0 })
+  );
+  screen.position.z = 0.045;
+  group.add(screen);
+
+  return group;
+}
+
+function setObjectOpacity(object, opacity) {
+  if (!object.material) return;
+  const materials = Array.isArray(object.material) ? object.material : [object.material];
+  materials.forEach((material) => {
+    material.transparent = true;
+    material.opacity = opacity;
+    material.needsUpdate = true;
+  });
 }
 
 function addRoom() {
